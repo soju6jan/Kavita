@@ -502,6 +502,7 @@ UI/Web/dist/
 /API.Tests/Extensions/Test Data/modified on run.txt
 
 # All config files/folders in config except appsettings.json
+/API/config/*
 /API/config-bak/
 /API/config-bak/*.*
 /API/config-bak/**/

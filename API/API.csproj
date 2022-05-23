@@ -13,7 +13,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
-    <DocumentationFile>bin\Debug\API.xml</DocumentationFile>
+    <DocumentationFile>D:\Kavita\build\bin\Debug\API.xml</DocumentationFile>
     <NoWarn>1701;1702;1591</NoWarn>
   </PropertyGroup>
 
@@ -34,6 +34,16 @@
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
 
     <Deterministic Condition="$(AssemblyVersion.EndsWith('*'))">False</Deterministic>
+
+    <BaseOutputPath>D:\Kavita\build\bin</BaseOutputPath>
+
+    <BaseIntermediateOutputPath>D:\Kavita\build\obj</BaseIntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <Optimize>False</Optimize>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <Optimize>True</Optimize>
   </PropertyGroup>
 
   <ItemGroup>

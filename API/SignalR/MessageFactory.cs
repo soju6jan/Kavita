@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
@@ -306,7 +306,7 @@ namespace API.SignalR
         }
 
         public static SignalRMessage CoverUpdateEvent(int id, string entityType)
-        {
+         {
             return new SignalRMessage()
             {
                 Name = CoverUpdate,

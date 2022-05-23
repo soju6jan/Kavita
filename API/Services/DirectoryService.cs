@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -528,7 +528,9 @@ namespace API.Services
 
                try {
                   subDirs = FileSystem.Directory.GetDirectories(currentDir).Where(path => ExcludeDirectories.Matches(path).Count == 0);
-               }
+                    // soju6jan
+                    subDirs = subDirs.OrderByDescending(s => s);
+                }
                // Thrown if we do not have discovery permission on the directory.
                catch (UnauthorizedAccessException e) {
                   Console.WriteLine(e.Message);
@@ -563,6 +565,8 @@ namespace API.Services
                // Otherwise, execute sequentially. Files are opened and processed
                // synchronously but this could be modified to perform async I/O.
                try {
+                    // soju6jan
+                    Array.Sort(files);
                    foreach (var file in files) {
                      action(file);
                      fileCount++;

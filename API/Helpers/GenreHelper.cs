@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using API.Data;
@@ -21,12 +21,12 @@ public static class GenreHelper
         {
             if (string.IsNullOrEmpty(name.Trim())) continue;
 
-            var normalizedName = Parser.Parser.Normalize(name);
+            var normalizedName = Parser.Parser.Normalize(name.Trim());
             var genre = allGenres.FirstOrDefault(p =>
                 p.NormalizedTitle.Equals(normalizedName) && p.ExternalTag == isExternal);
             if (genre == null)
             {
-                genre = DbFactory.Genre(name, false);
+                genre = DbFactory.Genre(name.Trim(), false);
                 allGenres.Add(genre);
             }
 

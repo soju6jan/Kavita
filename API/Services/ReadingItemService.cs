@@ -1,7 +1,10 @@
-﻿using System;
+using System;
 using API.Data.Metadata;
 using API.Entities.Enums;
 using API.Parser;
+using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace API.Services;
 
@@ -60,6 +63,22 @@ public class ReadingItemService : IReadingItemService
     /// <returns></returns>
     public int GetNumberOfPages(string filePath, MangaFormat format)
     {
+        try
+        {
+            String filename = Path.GetFileNameWithoutExtension(filePath);
+            Regex re = new Regex(@"#(?<Count>\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(500));
+            Match match = re.Match(filename);
+            if (match.Success)
+            {
+                //_logger.LogWarning("페이지수2 : " + match.Groups["Count"].Value);
+                return Int32.Parse(match.Groups["Count"].Value);
+            }
+        }
+        catch
+        {
+        }
+
+
         switch (format)
         {
             case MangaFormat.Archive:
@@ -87,6 +106,43 @@ public class ReadingItemService : IReadingItemService
         {
             return string.Empty;
         }
+
+        // soju6jan
+        var outputDirectory = _directoryService.CoverImageDirectory;
+        var configPath = _directoryService.FileSystem.Path.GetDirectoryName(outputDirectory);
+        var parentName = _directoryService.FileSystem.Path.GetFileName(_directoryService.FileSystem.Path.GetDirectoryName(filePath));
+        var archiveFileName = _directoryService.FileSystem.Path.GetFileNameWithoutExtension(filePath);
+        var retFilename = "_" + fileName + ".png";
+        var targetFilePath = _directoryService.FileSystem.Path.Join(outputDirectory, retFilename);
+
+        if (_directoryService.FileSystem.Directory.Exists((_directoryService.FileSystem.Path.Join(configPath, "covers2"))))
+        {
+            //var mdHash = MD5.Create();
+            string key = parentName.Trim() + "_" + archiveFileName.Trim();
+            key = key.Replace(" ", "");
+            //key = key.Normalize(System.Text.NormalizationForm.FormKC);
+            //string hash = GetMd5Hash(mdHash, key);
+            string thumbFilePath = _directoryService.FileSystem.Path.Join(configPath, "covers2", key + ".png");
+            if (File.Exists(thumbFilePath))
+            {
+                _directoryService.ExistOrCreate(outputDirectory);
+                try
+                {
+                    _directoryService.FileSystem.File.Delete(targetFilePath);
+                    File.Move(thumbFilePath, targetFilePath);
+                    //_logger.LogWarning("썸네일 이동 : {ArchivePath}", archivePath);
+                    //((ArchiveService)_archiveService)._logger.LogWarning("이동 : {thumbFilePath}", thumbFilePath);
+                    Console.WriteLine("이동 : " + thumbFilePath);
+                    return retFilename;
+                }
+                catch (Exception)
+                {
+                    /* Swallow exception */
+                }
+
+            }
+        }
+
 
         return format switch
         {

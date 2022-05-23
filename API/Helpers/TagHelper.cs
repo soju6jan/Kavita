@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using API.Data;
@@ -22,14 +22,14 @@ public static class TagHelper
             if (string.IsNullOrEmpty(name.Trim())) continue;
 
             var added = false;
-            var normalizedName = Parser.Parser.Normalize(name);
+            var normalizedName = Parser.Parser.Normalize(name.Trim());
 
             var genre = allTags.FirstOrDefault(p =>
                 p.NormalizedTitle.Equals(normalizedName) && p.ExternalTag == isExternal);
             if (genre == null)
             {
                 added = true;
-                genre = DbFactory.Tag(name, false);
+                genre = DbFactory.Tag(name.Trim(), false);
                 allTags.Add(genre);
             }
 

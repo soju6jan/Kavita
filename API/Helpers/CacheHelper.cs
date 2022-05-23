@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using API.Entities;
 using API.Entities.Interfaces;
 using API.Services;
@@ -41,7 +41,10 @@ public class CacheHelper : ICacheHelper
 
         var fileExists = !string.IsNullOrEmpty(coverPath) && _fileService.Exists(coverPath);
         if (isCoverLocked && fileExists) return false;
-        if (forceUpdate) return true;
+
+        // soju6jan
+        //if (forceUpdate) return true;
+        if (fileExists) return false;
         if (firstFile == null) return true;
         return (_fileService.HasFileBeenModifiedSince(firstFile.FilePath, firstFile.LastModified)) || !fileExists;
     }

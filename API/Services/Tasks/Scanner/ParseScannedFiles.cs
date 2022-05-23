@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -91,7 +91,9 @@ namespace API.Services.Tasks.Scanner
                 return;
             }
 
-
+             _logger.LogWarning("[프로세스파일] ProcessFile : {Path}", path);
+            //Console.WriteLine("[프로세스파일] ProcessFile : " +  path);
+            /*
             // This catches when original library type is Manga/Comic and when parsing with non
             if (Parser.Parser.IsEpub(path) && Parser.Parser.ParseVolume(info.Series) != Parser.Parser.DefaultVolume) // Shouldn't this be info.Volume != DefaultVolume?
             {
@@ -127,6 +129,7 @@ namespace API.Services.Tasks.Scanner
                     info.SeriesSort = info.ComicInfo.SeriesSort;
                 }
             }
+            */
 
             TrackSeries(info);
         }
@@ -194,7 +197,9 @@ namespace API.Services.Tasks.Scanner
         public async Task<Dictionary<ParsedSeries, List<ParserInfo>>> ScanLibrariesForSeries(LibraryType libraryType, IEnumerable<string> folders, string libraryName)
         {
             await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress, MessageFactory.FileScanProgressEvent("", libraryName, ProgressEventType.Started));
-            foreach (var folderPath in folders)
+            IEnumerable<string> sortFolders = folders.OrderBy(s=>s);
+            //OrderByDescending
+            foreach (var folderPath in sortFolders)
             {
                 try
                 {

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -14,6 +14,10 @@ using Kavita.Common;
 using Microsoft.Extensions.Logging;
 using SharpCompress.Archives;
 using SharpCompress.Common;
+using System.Text.RegularExpressions;
+using System.Security.Cryptography;
+using System.Text;
+
 
 namespace API.Services
 {
@@ -80,26 +84,68 @@ namespace API.Services
 
         public int GetNumberOfPagesFromArchive(string archivePath)
         {
+            _logger.LogWarning("페이지수 : {ArchivePath}", archivePath);
             if (!IsValidArchive(archivePath))
             {
                 _logger.LogError("Archive {ArchivePath} could not be found", archivePath);
                 return 0;
             }
+            
+            ArchiveLibrary libraryHandler = ArchiveLibrary.Default;
+            if (string.IsNullOrEmpty(archivePath) || !(File.Exists(archivePath) && Parser.Parser.IsArchive(archivePath) || Parser.Parser.IsEpub(archivePath))) libraryHandler = ArchiveLibrary.NotSupported;
+
+            var ext = _directoryService.FileSystem.Path.GetExtension(archivePath).ToUpper();
+            Object archive = null;
+            if (ext.Equals(".CBR") || ext.Equals(".RAR")) libraryHandler = ArchiveLibrary.SharpCompress;
+            if (libraryHandler == ArchiveLibrary.Default)
+            {
+                try
+                {
+                    archive = ZipFile.OpenRead(archivePath);
+                    //return ArchiveLibrary.Default;
+                }
+                catch (Exception)
+                {
+                    try
+                    {
+                        archive = ArchiveFactory.Open(archivePath);
+                        libraryHandler = ArchiveLibrary.SharpCompress;
+                    }
+                    catch (Exception)
+                    {
+                        libraryHandler = ArchiveLibrary.NotSupported;
+                    }
+                }
+            }
+            else if (libraryHandler == ArchiveLibrary.SharpCompress)
+            {
+                try
+                {
+                    archive = ArchiveFactory.Open(archivePath);
+                    libraryHandler = ArchiveLibrary.SharpCompress;
+                }
+                catch (Exception)
+                {
+                    libraryHandler = ArchiveLibrary.NotSupported;
+                }
+            }
+
 
             try
             {
-                var libraryHandler = CanOpen(archivePath);
+                //var libraryHandler = CanOpen(archivePath);
                 switch (libraryHandler)
                 {
                     case ArchiveLibrary.Default:
                     {
-                        using var archive = ZipFile.OpenRead(archivePath);
-                        return archive.Entries.Count(e => !Parser.Parser.HasBlacklistedFolderInPath(e.FullName) && Parser.Parser.IsImage(e.FullName));
+                        //using var archive = ZipFile.OpenRead(archivePath);
+                        return ((ZipArchive)archive).Entries.Count(e => !Parser.Parser.HasBlacklistedFolderInPath(e.FullName) && Parser.Parser.IsImage(e.FullName));
                     }
                     case ArchiveLibrary.SharpCompress:
                     {
-                        using var archive = ArchiveFactory.Open(archivePath);
-                        return archive.Entries.Count(entry => !entry.IsDirectory &&
+                        // 캐스팅??
+                        //using var archive2 = ArchiveFactory.Open(archivePath);
+                        return ((IArchive)archive).Entries.Count(entry => !entry.IsDirectory &&
                                                               !Parser.Parser.HasBlacklistedFolderInPath(Path.GetDirectoryName(entry.Key) ?? string.Empty)
                                                               && Parser.Parser.IsImage(entry.Key));
                     }
@@ -178,6 +224,18 @@ namespace API.Services
         }
 
 
+        /*
+        private String GetMd5Hash(MD5 md5Hash, string input)
+        {
+            Console.WriteLine(Encoding.UTF8.GetBytes(input));
+            byte[] data = md5Hash.ComputeHash(Encoding.UTF8.GetBytes(input));
+            StringBuilder sBuilder = new StringBuilder();
+            for (int i = 0; i < data.Length; i++) { sBuilder.Append(data[i].ToString("x2")); }
+            return sBuilder.ToString();
+        }
+        */
+
+
         /// <summary>
         /// Generates byte array of cover image.
         /// Given a path to a compressed file <see cref="Parser.Parser.ArchiveFileExtensions"/>, will ensure the first image (respects directory structure) is returned unless
@@ -192,28 +250,68 @@ namespace API.Services
         public string GetCoverImage(string archivePath, string fileName, string outputDirectory)
         {
             if (archivePath == null || !IsValidArchive(archivePath)) return string.Empty;
+
             try
             {
-                var libraryHandler = CanOpen(archivePath);
+                ArchiveLibrary libraryHandler = ArchiveLibrary.Default;
+                if (string.IsNullOrEmpty(archivePath) || !(File.Exists(archivePath) && Parser.Parser.IsArchive(archivePath) || Parser.Parser.IsEpub(archivePath))) libraryHandler = ArchiveLibrary.NotSupported;
+
+                var ext = _directoryService.FileSystem.Path.GetExtension(archivePath).ToUpper();
+                Object archive = null;
+                if (ext.Equals(".CBR") || ext.Equals(".RAR")) libraryHandler = ArchiveLibrary.SharpCompress;
+                if (libraryHandler == ArchiveLibrary.Default)
+                {
+                    try
+                    {
+                        archive = ZipFile.OpenRead(archivePath);
+                        //return ArchiveLibrary.Default;
+                    }
+                    catch (Exception)
+                    {
+                        try
+                        {
+                            archive = ArchiveFactory.Open(archivePath);
+                            libraryHandler = ArchiveLibrary.SharpCompress;
+                        }
+                        catch (Exception)
+                        {
+                            libraryHandler = ArchiveLibrary.NotSupported;
+                        }
+                    }
+                }
+                else if (libraryHandler == ArchiveLibrary.SharpCompress)
+                {
+                    try
+                    {
+                        archive = ArchiveFactory.Open(archivePath);
+                        libraryHandler = ArchiveLibrary.SharpCompress;
+                    }
+                    catch (Exception)
+                    {
+                        libraryHandler = ArchiveLibrary.NotSupported;
+                    }
+                }
+
+                //var libraryHandler = CanOpen(archivePath);
                 switch (libraryHandler)
                 {
                     case ArchiveLibrary.Default:
                     {
-                        using var archive = ZipFile.OpenRead(archivePath);
+                        //using var archive = ZipFile.OpenRead(archivePath);
 
-                        var entryName = FindCoverImageFilename(archivePath, archive.Entries.Select(e => e.FullName));
-                        var entry = archive.Entries.Single(e => e.FullName == entryName);
+                        var entryName = FindCoverImageFilename(archivePath, ((ZipArchive)archive).Entries.Select(e => e.FullName));
+                        var entry = ((ZipArchive)archive).Entries.Single(e => e.FullName == entryName);
 
                         using var stream = entry.Open();
                         return _imageService.WriteCoverThumbnail(stream, fileName, outputDirectory);
                     }
                     case ArchiveLibrary.SharpCompress:
                     {
-                        using var archive = ArchiveFactory.Open(archivePath);
-                        var entryNames = archive.Entries.Where(archiveEntry => !archiveEntry.IsDirectory).Select(e => e.Key).ToList();
+                        //using var archive = ArchiveFactory.Open(archivePath);
+                        var entryNames = ((IArchive)archive).Entries.Where(archiveEntry => !archiveEntry.IsDirectory).Select(e => e.Key).ToList();
 
                         var entryName = FindCoverImageFilename(archivePath, entryNames);
-                        var entry = archive.Entries.Single(e => e.Key == entryName);
+                        var entry = ((IArchive)archive).Entries.Single(e => e.Key == entryName);
 
                         using var stream = entry.OpenEntryStream();
                         return _imageService.WriteCoverThumbnail(stream, fileName, outputDirectory);
@@ -440,19 +538,58 @@ namespace API.Services
 
             try
             {
-                var libraryHandler = CanOpen(archivePath);
+                ArchiveLibrary libraryHandler = ArchiveLibrary.Default;
+                if (string.IsNullOrEmpty(archivePath) || !(File.Exists(archivePath) && Parser.Parser.IsArchive(archivePath) || Parser.Parser.IsEpub(archivePath))) libraryHandler = ArchiveLibrary.NotSupported;
+
+                var ext = _directoryService.FileSystem.Path.GetExtension(archivePath).ToUpper();
+                Object archive = null;
+                if (ext.Equals(".CBR") || ext.Equals(".RAR")) libraryHandler = ArchiveLibrary.SharpCompress;
+                if (libraryHandler == ArchiveLibrary.Default)
+                {
+                    try
+                    {
+                        archive = ZipFile.OpenRead(archivePath);
+                        //return ArchiveLibrary.Default;
+                    }
+                    catch (Exception)
+                    {
+                        try
+                        {
+                            archive = ArchiveFactory.Open(archivePath);
+                            libraryHandler = ArchiveLibrary.SharpCompress;
+                        }
+                        catch (Exception)
+                        {
+                            libraryHandler = ArchiveLibrary.NotSupported;
+                        }
+                    }
+                }
+                else if (libraryHandler == ArchiveLibrary.SharpCompress)
+                {
+                    try
+                    {
+                        archive = ArchiveFactory.Open(archivePath);
+                        libraryHandler = ArchiveLibrary.SharpCompress;
+                    }
+                    catch (Exception)
+                    {
+                        libraryHandler = ArchiveLibrary.NotSupported;
+                    }
+                }
+
+                //var libraryHandler = CanOpen(archivePath);
                 switch (libraryHandler)
                 {
                     case ArchiveLibrary.Default:
                     {
-                        using var archive = ZipFile.OpenRead(archivePath);
-                        ExtractArchiveEntries(archive, extractPath);
+                        //using var archive = ZipFile.OpenRead(archivePath);
+                        ExtractArchiveEntries((ZipArchive)archive, extractPath);
                         break;
                     }
                     case ArchiveLibrary.SharpCompress:
                     {
-                        using var archive = ArchiveFactory.Open(archivePath);
-                        ExtractArchiveEntities(archive.Entries.Where(entry => !entry.IsDirectory
+                        //using var archive = ArchiveFactory.Open(archivePath);
+                        ExtractArchiveEntities(((IArchive)archive).Entries.Where(entry => !entry.IsDirectory
                                                                               && !Parser.Parser.HasBlacklistedFolderInPath(Path.GetDirectoryName(entry.Key) ?? string.Empty)
                                                                               && Parser.Parser.IsImage(entry.Key)), extractPath);
                         break;

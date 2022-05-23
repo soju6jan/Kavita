@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -442,6 +442,7 @@ namespace API.Services
         {
             if (!IsValidFile(filePath)) return 0;
 
+
             try
             {
                if (Parser.Parser.IsPdf(filePath))
@@ -502,8 +503,32 @@ namespace API.Services
         {
            if (!Parser.Parser.IsEpub(filePath)) return null;
 
-           try
-           {
+
+            // soju6jan
+            ParserInfo ret = new ParserInfo()
+            {
+                Chapters = Parser.Parser.DefaultChapter,
+                Edition = string.Empty,
+                Format = MangaFormat.Epub,
+                Filename = Path.GetFileName(filePath),
+                //Title = epubBook.Title.Trim(),
+                FullFilePath = filePath,
+                IsSpecial = false,
+                //Series = epubBook.Title.Trim(),
+                Volumes = Parser.Parser.DefaultVolume,
+            };
+            String tmp = Path.GetFileName(Path.GetDirectoryName(filePath));
+            tmp = Regex.Replace(tmp, @"\[.*?\]", "").Trim();
+            ret.Series = tmp;
+
+            tmp = Path.GetFileNameWithoutExtension(filePath);
+            //tmp = Regex.Replace(tmp, @"\[.*?\]", "").Trim();
+            ret.Title = tmp;
+            return ret;
+
+
+            try
+            {
                 using var epubBook = EpubReader.OpenBook(filePath);
 
                 // <meta content="The Dark Tower" name="calibre:series"/>

@@ -18,6 +18,7 @@ using API.Services.Tasks.Scanner;
 using API.SignalR;
 using Hangfire;
 using Microsoft.Extensions.Logging;
+using System.Xml.Serialization;
 
 namespace API.Services.Tasks;
 public interface IScannerService
@@ -70,7 +71,9 @@ public class ScannerService : IScannerService
         var chapterIds = await _unitOfWork.SeriesRepository.GetChapterIdsForSeriesAsync(new[] {seriesId});
         var library = await _unitOfWork.LibraryRepository.GetLibraryForIdAsync(libraryId, LibraryIncludes.Folders);
         var folderPaths = library.Folders.Select(f => f.Path).ToList();
-
+        // soju6jan
+        //folderPaths = new List<string>();
+        //folderPaths.Add(Path.GetDirectoryName(files[0].FilePath));
 
         if (!await CheckMounts(library.Name, library.Folders.Select(f => f.Path).ToList()))
         {
@@ -83,7 +86,10 @@ public class ScannerService : IScannerService
         var allTags = await _unitOfWork.TagRepository.GetAllTagsAsync();
 
         var dirs = _directoryService.FindHighestDirectoriesFromFiles(folderPaths, files.Select(f => f.FilePath).ToList());
-
+        dirs = new Dictionary<string, string>();
+        dirs.Add(Path.GetDirectoryName(files[0].FilePath), "");
+        //folderPaths = new List<string>();
+        //folderPaths.Add(Path.GetDirectoryName(files[0].FilePath));
         _logger.LogInformation("Beginning file scan on {SeriesName}", series.Name);
         var (totalFiles, scanElapsedTime, parsedSeries) = await ScanFiles(library, dirs.Keys);
 
@@ -476,7 +482,7 @@ public class ScannerService : IScannerService
 
         foreach(var series in newSeries)
         {
-            _logger.LogDebug("[ScannerService] Processing series {SeriesName}", series.OriginalName);
+            _logger.LogDebug("[ScannerService] Processing series 뉴 {SeriesName}", series.OriginalName);
             await UpdateSeries(series, parsedSeries, allPeople, allTags, allGenres, library);
             _unitOfWork.SeriesRepository.Attach(series);
             try
@@ -508,7 +514,7 @@ public class ScannerService : IScannerService
     {
         try
         {
-            _logger.LogInformation("[ScannerService] Processing series {SeriesName}", series.OriginalName);
+            _logger.LogInformation("[ScannerService] Processing series 업데이트 - {SeriesName}", series.OriginalName);
             await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress, MessageFactory.LibraryScanProgressEvent(library.Name, ProgressEventType.Ended, series.Name));
 
             // Get all associated ParsedInfos to the series. This includes infos that use a different filename that matches Series LocalizedName
@@ -561,7 +567,7 @@ public class ScannerService : IScannerService
     }
 
 
-    private static void UpdateSeriesMetadata(Series series, ICollection<Person> allPeople, ICollection<Genre> allGenres, ICollection<Tag> allTags, LibraryType libraryType)
+    private static void _UpdateSeriesMetadata(Series series, ICollection<Person> allPeople, ICollection<Genre> allGenres, ICollection<Tag> allTags, LibraryType libraryType)
     {
         var isBook = libraryType == LibraryType.Book;
         var firstVolume = series.Volumes.OrderBy(c => c.Number, new ChapterSortComparer()).FirstWithChapters(isBook);
@@ -700,6 +706,176 @@ public class ScannerService : IScannerService
             people, person => series.Metadata.People.Remove(person));
     }
 
+
+    // soju6jan
+    private static void UpdateSeriesMetadata(Series series, ICollection<Person> allPeople, ICollection<Genre> allGenres, ICollection<Tag> allTags, LibraryType libraryType)
+    {
+        var isBook = libraryType == LibraryType.Book;
+        var firstVolume = series.Volumes.OrderBy(c => c.Number, new ChapterSortComparer()).FirstWithChapters(isBook);
+        var firstChapter = firstVolume?.Chapters.GetFirstChapterWithFiles();
+
+        var firstFile = firstChapter?.Files.FirstOrDefault();
+        if (firstFile == null) return;
+        //if (Parser.Parser.IsPdf(firstFile.FilePath)) return;
+
+        String filepath = firstFile.FilePath;
+        String metaJsonFilepath = Path.Join(Path.GetDirectoryName(filepath), "info.xml");
+        ComicInfo comicInfo = null;
+        if (File.Exists(metaJsonFilepath))
+        {
+            try
+            {
+                using var stream = File.OpenText(metaJsonFilepath);
+                var serializer = new XmlSerializer(typeof(ComicInfo));
+                comicInfo = (ComicInfo)serializer.Deserialize(stream);
+                ComicInfo.CleanComicInfo(comicInfo);
+            }
+            catch
+            {
+                Console.Write("info.xml ERROR!");
+            }
+        }
+
+
+        void HandleAddPerson(Person person)
+        {
+            PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+            allPeople.Add(person);
+        }
+
+
+        if (comicInfo != null)
+        {
+            // Update Metadata based on Chapter metadata
+            if (comicInfo.Year != 0)
+            {
+                series.Metadata.ReleaseYear = comicInfo.Year;
+                if (series.Metadata.ReleaseYear < 1000)
+                {
+                    // Not a valid year, default to 0
+                    series.Metadata.ReleaseYear = 0;
+                }
+            }
+
+            //if (!series.Metadata.AgeRatingLocked) series.Metadata.AgeRating = chapters.Max(chapter => chapter.AgeRating);
+            /*
+            if (!series.Metadata.AgeRatingLocked && comicInfo.AgeRating != "")
+            {
+                chapter.AgeRating = ComicInfo.ConvertAgeRatingToEnum(comicInfo.AgeRating);
+                //series.Metadata.AgeRating = comicInfo.AgeRating;
+            }
+            */
+
+            if (!series.Metadata.PublicationStatusLocked && comicInfo.Notes != "")
+            {
+                if (comicInfo.Notes == "완결")
+                {
+                    series.Metadata.PublicationStatus = PublicationStatus.Completed;
+                }
+                
+            }
+
+            if (!series.Metadata.SummaryLocked && comicInfo.Summary != "")
+            {
+                series.Metadata.Summary = comicInfo.Summary;
+            }
+
+            if (!series.Metadata.LanguageLocked)
+            {
+                series.Metadata.Language = comicInfo.LanguageISO;
+                /*
+                if (comicInfo.LanguageISO == "ko")
+                {
+                    series.Metadata.Language = "한국어";
+                } else
+                {
+                    series.Metadata.Language = comicInfo.LanguageISO;
+                }
+                */
+            }
+
+
+            void func(String value, PersonRole role)
+            {
+                if (value != null && value != "")
+                {
+                    var name = value.Split(",");
+                    PersonHelper.UpdatePeople(allPeople, name, role,
+                       person => PersonHelper.AddPersonIfNotExists(series.Metadata.People, person));
+                }
+                /*
+                foreach (String name in value.Split(","))
+                {
+                    if (name.Trim() != "")
+                    {
+                        Person person = new Person();
+                        person.Name = name.Trim();
+                        person.Role = role;
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                        //PersonHelper.UpdatePeople(allPeople, name, PersonRole.Writer, person => PersonHelper.AddPersonIfNotExists(series.Metadata.People, person));
+                    }
+                }
+                */
+            }
+
+            series.Metadata.People.Clear();
+            if (!series.Metadata.WriterLocked) func(comicInfo.Writer, PersonRole.Writer);
+            if (!series.Metadata.CoverArtistLocked) func(comicInfo.CoverArtist, PersonRole.CoverArtist);
+            if (!series.Metadata.PublisherLocked) func(comicInfo.Publisher, PersonRole.Publisher);
+            if (!series.Metadata.CharacterLocked) func(comicInfo.Characters, PersonRole.Character);
+            if (!series.Metadata.ColoristLocked) func(comicInfo.Colorist, PersonRole.Colorist);
+            if (!series.Metadata.EditorLocked) func(comicInfo.Editor, PersonRole.Editor);
+            if (!series.Metadata.InkerLocked) func(comicInfo.Inker, PersonRole.Inker);
+            if (!series.Metadata.LettererLocked) func(comicInfo.Letterer, PersonRole.Letterer);
+            if (!series.Metadata.PencillerLocked) func(comicInfo.Penciller, PersonRole.Penciller);
+            if (!series.Metadata.TranslatorLocked) func(comicInfo.Translator, PersonRole.Translator);
+            if (!series.Metadata.TranslatorLocked) func(comicInfo.Translator, PersonRole.Translator);
+
+
+            if (!series.Metadata.TagsLocked)
+            {
+                series.Metadata.Tags.Clear();
+                String value = comicInfo.Tags;
+                if (value != null && value != "")
+                {
+                    var name = value.Split(",");
+                    TagHelper.UpdateTag(allTags, name, false, (tag, _) =>
+                    {
+                        TagHelper.AddTagIfNotExists(series.Metadata.Tags, tag);
+                        allTags.Add(tag);
+                    });
+                }
+            }
+            if (!series.Metadata.GenresLocked)
+            {
+                series.Metadata.Genres.Clear();
+                String value = comicInfo.Genre;
+                if (value != null && value != "")
+                {
+                    var name = value.Split(",");
+                    //GenreHelper.KeepOnlySameGenreBetweenLists(chapter.Genres, genres.Select(g => DbFactory.Genre(g, false)).ToList());
+                    GenreHelper.UpdateGenre(allGenres, name, false,
+                        genre => series.Metadata.Genres.Add(genre));
+                }
+                /*
+                foreach (var name in comicInfo.Genre.Split(","))
+                {
+                    if (name.Trim() != "")
+                    {
+                        Genre genre = new Genre();
+                        genre.Title = name;
+                        GenreHelper.AddGenreIfNotExists(series.Metadata.Genres, genre);
+                    }
+                }
+                */
+            }
+            /*
+            var people = chapters.SelectMany(c => c.People).ToList();
+            PersonHelper.KeepOnlySamePeopleBetweenLists(series.Metadata.People,
+                people, person => series.Metadata.People.Remove(person));
+            */
+        }
+    }
 
 
     private void UpdateVolumes(Series series, IList<ParserInfo> parsedInfos, ICollection<Person> allPeople, ICollection<Tag> allTags, ICollection<Genre> allGenres)
@@ -861,6 +1037,8 @@ public class ScannerService : IScannerService
 
     private void UpdateChapterFromComicInfo(Chapter chapter, ICollection<Person> allPeople, ICollection<Tag> allTags, ICollection<Genre> allGenres, ComicInfo? info)
     {
+        // soju6jan
+        return;
         var firstFile = chapter.Files.OrderBy(x => x.Chapter).FirstOrDefault();
         if (firstFile == null ||
             _cacheHelper.HasFileNotChangedSinceCreationOrLastScan(chapter, false, firstFile)) return;
