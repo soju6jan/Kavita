@@ -135,6 +135,7 @@ namespace API.Services.Tasks.Scanner
                 }
             }
             */
+
             try
             {
                 TrackSeries(info);

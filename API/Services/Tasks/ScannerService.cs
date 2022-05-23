@@ -1090,9 +1090,8 @@ public class ScannerService : IScannerService
     {
         // soju6jan
         return;
-        var firstFile = chapter.Files.OrderBy(x => x.Chapter).FirstOrDefault();
-        //var firstFile = chapter.Files.MinBy(x => x.Chapter);
-
+        //var firstFile = chapter.Files.OrderBy(x => x.Chapter).FirstOrDefault();
+        var firstFile = chapter.Files.MinBy(x => x.Chapter);
         if (firstFile == null ||
             _cacheHelper.HasFileNotChangedSinceCreationOrLastScan(chapter, false, firstFile)) return;
 

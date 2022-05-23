@@ -183,7 +183,7 @@ public class MetadataService : IMetadataService
         catch {
             Console.WriteLine("SERIES COVER IMAGE PROCESS ERROR!!!");
         } 
-        
+
         await _eventHub.SendMessageAsync(MessageFactory.CoverUpdate, MessageFactory.CoverUpdateEvent(series.Id, MessageFactoryEntityTypes.Series), false);
     }
 
