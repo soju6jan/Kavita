@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using API.DTOs.CollectionTags;
@@ -83,7 +84,6 @@ public class CollectionTagRepository : ICollectionTagRepository
     public async Task<IEnumerable<CollectionTagDto>> GetAllTagDtosAsync()
     {
         return await _context.CollectionTag
-            .Select(c => c)
             .OrderBy(c => c.NormalizedTitle)
             .AsNoTracking()
             .ProjectTo<CollectionTagDto>(_mapper.ConfigurationProvider)

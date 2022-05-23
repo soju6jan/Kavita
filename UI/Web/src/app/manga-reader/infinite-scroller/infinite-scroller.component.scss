@@ -27,9 +27,10 @@
 
 
 img, .full-width {
-    width: 100% !important;
+    max-width: 100% !important;
     height: auto;
 }
+
 
 
 @keyframes move-up-down {

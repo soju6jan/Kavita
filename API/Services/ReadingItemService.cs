@@ -36,7 +36,7 @@ public class ReadingItemService : IReadingItemService
     }
 
     /// <summary>
-    /// Gets the ComicInfo for the file if it exists. Null otherewise.
+    /// Gets the ComicInfo for the file if it exists. Null otherwise.
     /// </summary>
     /// <param name="filePath">Fully qualified path of file</param>
     /// <returns></returns>
