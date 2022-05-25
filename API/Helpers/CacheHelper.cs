@@ -42,7 +42,6 @@ public class CacheHelper : ICacheHelper
         var fileExists = !string.IsNullOrEmpty(coverPath) && _fileService.Exists(coverPath);
         if (isCoverLocked && fileExists) return false;
 
-        // soju6jan
         //if (forceUpdate) return true;
         if (fileExists) return false;
         if (firstFile == null) return true;

@@ -63,16 +63,37 @@ public class MetadataService : IMetadataService
     /// <param name="chapter"></param>
     /// <param name="forceUpdate">Force updating cover image even if underlying file has not been modified or chapter already has a cover image</param>
     private async Task<bool> UpdateChapterCoverImage(Chapter chapter, bool forceUpdate)
-    {
+   {
+        
         var firstFile = chapter.Files.MinBy(x => x.Chapter);
+        if (firstFile != null)
+            _logger.LogWarning("챕터커버 1.진입 : {} forceUpdate:{}", firstFile.FilePath, forceUpdate);
 
         if (!_cacheHelper.ShouldUpdateCoverImage(_directoryService.FileSystem.Path.Join(_directoryService.CoverImageDirectory, chapter.CoverImage), firstFile, chapter.Created, forceUpdate, chapter.CoverImageLocked))
+        {
+            _logger.LogWarning("챕터커버 종료. ShouldUpdateCoverImage False로 종료");
             return false;
+        }
+            
 
         if (firstFile == null) return false;
 
         _logger.LogDebug("[MetadataService] Generating cover image for {File}", firstFile.FilePath);
-        _logger.LogWarning("커버 생성 : {File}", firstFile.FilePath);
+        _logger.LogWarning("챕터커버 3. {File}", firstFile.FilePath);
+
+        if (!String.IsNullOrEmpty(chapter.CoverImage))
+        {
+            var outputDirectory = _directoryService.CoverImageDirectory;
+            var targetFilePath = _directoryService.FileSystem.Path.Join(outputDirectory, chapter.CoverImage);
+            if (File.Exists(targetFilePath))
+            {
+                _logger.LogWarning("챕터커버 종료: 커버 EXIST : {}", chapter.CoverImage);
+                return true;
+            }
+
+        }
+        _logger.LogWarning("챕터커버 4. ReadingService.GetCoverImage 실행 {File}", firstFile.FilePath);
+
         chapter.CoverImage = _readingItemService.GetCoverImage(firstFile.FilePath, ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId), firstFile.Format);
         await _eventHub.SendMessageAsync(MessageFactory.CoverUpdate,
             MessageFactory.CoverUpdateEvent(chapter.Id, MessageFactoryEntityTypes.Chapter), false);
@@ -118,7 +139,7 @@ public class MetadataService : IMetadataService
     /// <param name="forceUpdate">Force updating cover image even if underlying file has not been modified or chapter already has a cover image</param>
     private async Task UpdateSeriesCoverImage(Series series, bool forceUpdate)
     {
-        _logger.LogWarning("진입 : UpdateSeriesCoverImage :"+ series.Name);
+        _logger.LogWarning("시리즈 커버 진입 : UpdateSeriesCoverImage :"+ series.Name);
         // 진입2까지 찍히는데 시간이 오래걸림
 
         if (series == null) return;
@@ -127,6 +148,7 @@ public class MetadataService : IMetadataService
                 null, series.Created, forceUpdate, series.CoverImageLocked))
             return;
         */
+        /*
         series.Volumes ??= new List<Volume>();
         var firstCover = series.Volumes.GetCoverImage(series.Format);
 
@@ -146,7 +168,7 @@ public class MetadataService : IMetadataService
             }
         }
         series.CoverImage = firstCover?.CoverImage ?? coverImage;
-
+        */
         try
         {
             var firstVolume = series.Volumes[0];
@@ -160,7 +182,8 @@ public class MetadataService : IMetadataService
             // String coverFilepath = Path.Join(filepath, "cover.jpg");
             String coverFilepath = _directoryService.FileSystem.Path.Join(Path.GetDirectoryName(filepath), "cover.jpg");
             // _directoryService.CoverImageDirectory
-            String newCoverImage = series.Name.Replace(" ", "_") + "_cover.jpg";
+            // String newCoverImage = series.Name.Replace(" ", "_") + "_cover.jpg";
+            String newCoverImage = "_s" + series.Id + ".jpg";
             String configCoverFilepath = _directoryService.FileSystem.Path.Join(_directoryService.CoverImageDirectory, newCoverImage);
             if (File.Exists(coverFilepath) && !File.Exists(configCoverFilepath))
             {
@@ -177,8 +200,31 @@ public class MetadataService : IMetadataService
             {
                 series.CoverImage = newCoverImage;
                 //series.CoverImageLocked = false;
+                _logger.LogWarning("시리즈 커버 cover.jpg로 처리 : " + series.CoverImage);
+            } else
+            {
+                series.Volumes ??= new List<Volume>();
+                var firstCover = series.Volumes.GetCoverImage(series.Format);
+
+                string coverImage = null;
+                if (firstCover == null && series.Volumes.Any())
+                {
+                    // If firstCover is null and one volume, the whole series is Chapters under Vol 0.
+                    if (series.Volumes.Count == 1)
+                    {
+                        coverImage = series.Volumes[0].Chapters.OrderBy(c => double.Parse(c.Number), _chapterSortComparerForInChapterSorting)
+                            .FirstOrDefault(c => !c.IsSpecial)?.CoverImage;
+                    }
+
+                    if (!_cacheHelper.CoverImageExists(coverImage))
+                    {
+                        coverImage = series.Volumes[0].Chapters.MinBy(c => double.Parse(c.Number), _chapterSortComparerForInChapterSorting)?.CoverImage;
+                    }
+                }
+                series.CoverImage = firstCover?.CoverImage ?? coverImage;
+                _logger.LogWarning("시리즈 커버 볼륨으로 처리 : " + series.CoverImage);
             }
-            _logger.LogWarning("진입2 : UpdateSeriesCoverImage :" + series.CoverImage);
+            
         }
         catch {
             Console.WriteLine("SERIES COVER IMAGE PROCESS ERROR!!!");

@@ -348,6 +348,8 @@ public class ScannerService : IScannerService
 
     private async Task UpdateLibrary(Library library, Dictionary<ParsedSeries, List<ParserInfo>> parsedSeries)
     {
+        _logger.LogWarning("UpdateLibrary 시작 {LibraryName}", library.Name);
+
         if (parsedSeries == null) return;
 
         // Library contains no Series, so we need to fetch series in groups of ChunkSize
@@ -485,7 +487,7 @@ public class ScannerService : IScannerService
 
         foreach(var series in newSeries)
         {
-            _logger.LogDebug("[ScannerService] Processing series 뉴 {SeriesName}", series.OriginalName);
+            _logger.LogWarning("[ScannerService] Processing series 뉴 {SeriesName}", series.OriginalName);
             await UpdateSeries(series, parsedSeries, allPeople, allTags, allGenres, library);
             _unitOfWork.SeriesRepository.Attach(series);
             try
@@ -510,6 +512,7 @@ public class ScannerService : IScannerService
         _logger.LogInformation(
             "[ScannerService] Added {NewSeries} series in {ElapsedScanTime} milliseconds for {LibraryName}",
             newSeries.Count, stopwatch.ElapsedMilliseconds, library.Name);
+        _logger.LogWarning("UpdateLibrary 종료 {LibraryName}", library.Name);
     }
 
     private async Task UpdateSeries(Series series, Dictionary<ParsedSeries, List<ParserInfo>> parsedSeries,
@@ -517,7 +520,7 @@ public class ScannerService : IScannerService
     {
         try
         {
-            _logger.LogInformation("[ScannerService] Processing series 업데이트 - {SeriesName}", series.OriginalName);
+            _logger.LogWarning("[ScannerService] Processing series 업데이트 - {SeriesName}", series.OriginalName);
             await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress, MessageFactory.LibraryScanProgressEvent(library.Name, ProgressEventType.Ended, series.Name));
 
             // Get all associated ParsedInfos to the series. This includes infos that use a different filename that matches Series LocalizedName
@@ -774,8 +777,7 @@ public class ScannerService : IScannerService
     private static void UpdateSeriesMetadata(Series series, ICollection<Person> allPeople, ICollection<Genre> allGenres, ICollection<Tag> allTags, LibraryType libraryType)
     {
         var isBook = libraryType == LibraryType.Book;
-        var firstVolume = series.Volumes.OrderBy(c => c.Number, new ChapterSortComparer()).FirstWithChapters(isBook);
-        var firstChapter = firstVolume?.Chapters.GetFirstChapterWithFiles();
+        var firstChapter = SeriesService.GetFirstChapterForMetadata(series, isBook);
 
         var firstFile = firstChapter?.Files.FirstOrDefault();
         if (firstFile == null) return;

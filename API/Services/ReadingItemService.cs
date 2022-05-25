@@ -132,7 +132,7 @@ public class ReadingItemService : IReadingItemService
                     File.Move(thumbFilePath, targetFilePath);
                     //_logger.LogWarning("썸네일 이동 : {ArchivePath}", archivePath);
                     //((ArchiveService)_archiveService)._logger.LogWarning("이동 : {thumbFilePath}", thumbFilePath);
-                    Console.WriteLine("이동 : " + thumbFilePath);
+                    Console.WriteLine("CHAPTER COVER 4. MOVE FROM COVER2");
                     return retFilename;
                 }
                 catch (Exception)
@@ -142,7 +142,7 @@ public class ReadingItemService : IReadingItemService
 
             }
         }
-
+        Console.WriteLine("CHAPTER COVER 5. REAL FILE OPEN ");
 
         return format switch
         {
