@@ -41,7 +41,7 @@ public interface IScannerService
     [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     Task ScanSeries(int libraryId, int seriesId, CancellationToken token);
 
-    //https://stackoverflow.com/questions/30787584/hangfire-single-instance-recurring-job
+    // https://stackoverflow.com/questions/28849407/disable-re-queueing-of-failed-hangfire-backgroundjob
 }
 
 public class ScannerService : IScannerService
