@@ -220,6 +220,10 @@ namespace API.Services.Tasks.Scanner
             //OrderByDescending
             foreach (var folderPath in sortFolders)
             {
+                if (folderPath.EndsWith("테스트2"))
+                {
+                    continue;
+                }
                 try
                 {
                     async void Action(string f)

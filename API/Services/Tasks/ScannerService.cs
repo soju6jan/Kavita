@@ -28,9 +28,20 @@ public interface IScannerService
     /// cover images if forceUpdate is true.
     /// </summary>
     /// <param name="libraryId">Library to scan against</param>
+    [DisableConcurrentExecution(timeoutInSeconds: 360)]
+    [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     Task ScanLibrary(int libraryId);
+
+    [DisableConcurrentExecution(timeoutInSeconds: 360)]
+    [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     Task ScanLibraries();
+
+
+    [DisableConcurrentExecution(timeoutInSeconds: 360)]
+    [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     Task ScanSeries(int libraryId, int seriesId, CancellationToken token);
+
+    //https://stackoverflow.com/questions/30787584/hangfire-single-instance-recurring-job
 }
 
 public class ScannerService : IScannerService
@@ -242,8 +253,33 @@ public class ScannerService : IScannerService
     {
         _logger.LogInformation("Starting Scan of All Libraries");
         var libraries = await _unitOfWork.LibraryRepository.GetLibrariesAsync();
+
+        // soju6jan
+        String scanIgnoreLibraryFIlepath = _directoryService.FileSystem.Path.Join(_directoryService.ConfigDirectory, "scan_ignore_library.kavita");
+        string[] scanIgnoreLibrary = new string[] { };
+
+        if (File.Exists(scanIgnoreLibraryFIlepath))
+        {
+            try
+            {
+                using (var sr = new StreamReader(scanIgnoreLibraryFIlepath))
+                {
+                    scanIgnoreLibrary = sr.ReadToEnd().Split("\n");
+                }
+            }
+            catch
+            {
+                _logger.LogWarning("스캔 ignore library error");
+            }
+        }
+
         foreach (var lib in libraries)
         {
+            if (scanIgnoreLibrary.Contains(""+lib.Id))
+            {
+                _logger.LogWarning("스캔 ignore library : " + lib.Name);
+                continue;
+            }
             await ScanLibrary(lib.Id);
         }
         _logger.LogInformation("Scan of All Libraries Finished");
@@ -278,8 +314,6 @@ public class ScannerService : IScannerService
 
             return;
         }
-
-
         _logger.LogInformation("[ScannerService] Beginning file scan on {LibraryName}", library.Name);
 
         var (totalFiles, scanElapsedTime, series) = await ScanFiles(library, library.Folders.Select(fp => fp.Path));
