@@ -28,17 +28,17 @@ public interface IScannerService
     /// cover images if forceUpdate is true.
     /// </summary>
     /// <param name="libraryId">Library to scan against</param>
-    [DisableConcurrentExecution(timeoutInSeconds: 360)]
+    [DisableConcurrentExecution(60 * 60 * 60)]
     [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     Task ScanLibrary(int libraryId);
 
-    [DisableConcurrentExecution(timeoutInSeconds: 360)]
+    [DisableConcurrentExecution(60 * 60 * 60)]
     [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     Task ScanLibraries();
 
-
-    [DisableConcurrentExecution(timeoutInSeconds: 360)]
-    [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+    // 시도 횟수 3으로 변경
+    [DisableConcurrentExecution(60 * 60 * 60)]
+    [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     Task ScanSeries(int libraryId, int seriesId, CancellationToken token);
 
     // https://stackoverflow.com/questions/28849407/disable-re-queueing-of-failed-hangfire-backgroundjob
@@ -72,8 +72,8 @@ public class ScannerService : IScannerService
         _cacheHelper = cacheHelper;
     }
 
-    [DisableConcurrentExecution(timeoutInSeconds: 360)]
-    [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+    [DisableConcurrentExecution(60 * 60 * 60)]
+    [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ScanSeries(int libraryId, int seriesId, CancellationToken token)
     {
         var sw = new Stopwatch();
@@ -247,7 +247,7 @@ public class ScannerService : IScannerService
     }
 
 
-    [DisableConcurrentExecution(timeoutInSeconds: 360)]
+    [DisableConcurrentExecution(60 * 60 * 60)]
     [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ScanLibraries()
     {
@@ -292,7 +292,7 @@ public class ScannerService : IScannerService
     /// ie) all entities will be rechecked for new cover images and comicInfo.xml changes
     /// </summary>
     /// <param name="libraryId"></param>
-    [DisableConcurrentExecution(360)]
+    [DisableConcurrentExecution(60 * 60 * 60)]
     [AutomaticRetry(Attempts = 0, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     public async Task ScanLibrary(int libraryId)
     {
