@@ -36,10 +36,6 @@
     <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
 
     <Deterministic Condition="$(AssemblyVersion.EndsWith('*'))">False</Deterministic>
-
-    <BaseOutputPath>D:\Kavita\build\bin</BaseOutputPath>
-
-    <BaseIntermediateOutputPath>D:\Kavita\build\obj</BaseIntermediateOutputPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <Optimize>False</Optimize>
