@@ -648,6 +648,24 @@ public static class Parser
             MatchOptions, RegexTimeout),
     };
 
+
+    private static readonly Regex[] GdsRegex = new[]
+    {
+        new Regex(
+            @"(.*?)\s?(?<Volume>\d+)(회|화|장|권)",
+            MatchOptions, RegexTimeout),
+        /*
+        new Regex(
+            @"(.*?)(v|e|ch)[\s\.]?(?<Volume>\d+)",
+            MatchOptions, RegexTimeout),
+        */
+        new Regex(
+            @"([^#|\d])(?<Volume>\d+)(#\d+)?$",
+            MatchOptions, RegexTimeout),
+    };
+
+
+
     private static readonly Regex MangaEditionRegex = new Regex(
         // Tenjo Tenge {Full Contact Edition} v01 (2011) (Digital) (ASTC).cbz
         // To Love Ru v01 Uncensored (Ch.001-007)
@@ -691,7 +709,10 @@ public static class Parser
         MatchOptions, RegexTimeout
     );
 
-
+    private static readonly Regex GdsSpecialRegex = new Regex(
+       @"\d{4}[\.|-]\d{2}",
+       MatchOptions, RegexTimeout
+   );
 
     public static MangaFormat ParseFormat(string filePath)
     {
@@ -736,6 +757,7 @@ public static class Parser
             LibraryType.Image => IsMangaSpecial(filePath),
             LibraryType.LightNovel => IsMangaSpecial(filePath),
             LibraryType.ComicVine => IsComicSpecial(filePath),
+            LibraryType.GDS => IsGdsSpecial(filePath),
             _ => false
         };
     }
@@ -754,6 +776,12 @@ public static class Parser
         return ComicSpecialRegex.IsMatch(filePath);
     }
 
+    private static bool IsGdsSpecial(string? filePath)
+    {
+        if (string.IsNullOrEmpty(filePath)) return false;
+        filePath = ReplaceUnderscores(filePath);
+        return GdsSpecialRegex.IsMatch(filePath);
+    }
 
 
     public static string ParseMangaSeries(string filename)
@@ -822,6 +850,24 @@ public static class Parser
         return LooseLeafVolume;
     }
 
+    public static string ParseGdsVolume(string filename)
+    {
+        foreach (var regex in GdsRegex)
+        {
+            var matches = regex.Matches(filename.Replace("_", " "));
+            foreach (var group in matches.Select(match => match.Groups))
+            {
+                if (!group["Volume"].Success || group["Volume"] == Match.Empty) continue;
+
+                var value = group["Volume"].Value;
+                var hasPart = group["Part"].Success;
+                return FormatValue(value, hasPart);
+            }
+        }
+
+        return LooseLeafVolume;
+    }
+
 
     private static string FormatValue(string value, bool hasPart)
     {
@@ -868,6 +914,7 @@ public static class Parser
             LibraryType.Image => ParseMangaVolume(filename),
             LibraryType.LightNovel => ParseMangaVolume(filename),
             LibraryType.ComicVine => ParseComicVolume(filename),
+            LibraryType.GDS => ParseGdsVolume(filename),
             _ => LooseLeafVolume
         };
     }
@@ -1120,11 +1167,16 @@ public static class Parser
     {
         if (string.IsNullOrEmpty(name)) return name;
         var cleaned = SpecialTokenRegex.Replace(name.Replace('_', ' '), string.Empty).Trim();
+        /*
+         * 너무 줄어듬.
         var lastIndex = cleaned.LastIndexOf('.');
         if (lastIndex > 0)
         {
             cleaned = cleaned.Substring(0, cleaned.LastIndexOf('.')).Trim();
         }
+        */
+        // #숫자 제거
+        cleaned = Regex.Replace(cleaned, @"#\d+$", "").Trim();
 
         return string.IsNullOrEmpty(cleaned) ? name : cleaned;
     }

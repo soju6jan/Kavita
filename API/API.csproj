@@ -102,6 +102,7 @@
     <PackageReference Include="System.IO.Abstractions" Version="21.0.22" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.6" />
     <PackageReference Include="VersOne.Epub" Version="3.3.2" />
+    <PackageReference Include="YamlDotNet" Version="15.3.0" />
   </ItemGroup>
 
   <ItemGroup>
