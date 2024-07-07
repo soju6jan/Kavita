@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -46,6 +46,7 @@ public class TaskScheduler : ITaskScheduler
     private readonly IScannerService _scannerService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IMetadataService _metadataService;
+    private readonly IMetadataServiceGds _metadataServiceGds;
     private readonly IBackupService _backupService;
     private readonly ICleanupService _cleanupService;
 
@@ -53,6 +54,7 @@ public class TaskScheduler : ITaskScheduler
     private readonly IVersionUpdaterService _versionUpdaterService;
     private readonly IThemeService _themeService;
     private readonly IWordCountAnalyzerService _wordCountAnalyzerService;
+    private readonly IWordCountAnalyzerServiceGds _wordCountAnalyzerServiceGds;
     private readonly IStatisticService _statisticService;
     private readonly IMediaConversionService _mediaConversionService;
     private readonly IScrobblingService _scrobblingService;
@@ -92,9 +94,9 @@ public class TaskScheduler : ITaskScheduler
 
 
     public TaskScheduler(ICacheService cacheService, ILogger<TaskScheduler> logger, IScannerService scannerService,
-        IUnitOfWork unitOfWork, IMetadataService metadataService, IBackupService backupService,
+        IUnitOfWork unitOfWork, IMetadataService metadataService, IMetadataServiceGds metadataServiceGds, IBackupService backupService,
         ICleanupService cleanupService, IStatsService statsService, IVersionUpdaterService versionUpdaterService,
-        IThemeService themeService, IWordCountAnalyzerService wordCountAnalyzerService, IStatisticService statisticService,
+        IThemeService themeService, IWordCountAnalyzerService wordCountAnalyzerService, IWordCountAnalyzerServiceGds wordCountAnalyzerServiceGds, IStatisticService statisticService,
         IMediaConversionService mediaConversionService, IScrobblingService scrobblingService, ILicenseService licenseService,
         IExternalMetadataService externalMetadataService, ISmartCollectionSyncService smartCollectionSyncService, IEventHub eventHub)
     {
@@ -103,12 +105,14 @@ public class TaskScheduler : ITaskScheduler
         _scannerService = scannerService;
         _unitOfWork = unitOfWork;
         _metadataService = metadataService;
+        _metadataServiceGds = metadataServiceGds;
         _backupService = backupService;
         _cleanupService = cleanupService;
         _statsService = statsService;
         _versionUpdaterService = versionUpdaterService;
         _themeService = themeService;
         _wordCountAnalyzerService = wordCountAnalyzerService;
+        _wordCountAnalyzerServiceGds = wordCountAnalyzerServiceGds;
         _statisticService = statisticService;
         _mediaConversionService = mediaConversionService;
         _scrobblingService = scrobblingService;
@@ -220,6 +224,7 @@ public class TaskScheduler : ITaskScheduler
 
     public void AnalyzeFilesForLibrary(int libraryId, bool forceUpdate = false)
     {
+        BackgroundJob.Enqueue(() => _wordCountAnalyzerServiceGds.ScanLibrary(libraryId, forceUpdate));
         BackgroundJob.Enqueue(() => _wordCountAnalyzerService.ScanLibrary(libraryId, forceUpdate));
     }
 
@@ -384,6 +389,9 @@ public class TaskScheduler : ITaskScheduler
         }
 
         _logger.LogInformation("Enqueuing library metadata refresh for: {LibraryId}", libraryId);
+
+        // GenerateCoversForLibrary GDS 아니면 리턴처리
+        BackgroundJob.Enqueue(() => _metadataServiceGds.GenerateCoversForLibrary(libraryId, forceUpdate));
         BackgroundJob.Enqueue(() => _metadataService.GenerateCoversForLibrary(libraryId, forceUpdate));
     }
 
@@ -396,6 +404,9 @@ public class TaskScheduler : ITaskScheduler
         }
 
         _logger.LogInformation("Enqueuing series metadata refresh for: {SeriesId}", seriesId);
+
+        // GenerateCoversForSeries GDS 리턴
+        BackgroundJob.Enqueue(() => _metadataServiceGds.GenerateCoversForSeries(libraryId, seriesId, forceUpdate, null));
         BackgroundJob.Enqueue(() => _metadataService.GenerateCoversForSeries(libraryId, seriesId, forceUpdate));
     }
 
@@ -430,6 +441,7 @@ public class TaskScheduler : ITaskScheduler
         }
 
         _logger.LogInformation("Enqueuing analyze files scan for: {SeriesId}", seriesId);
+        BackgroundJob.Enqueue(() => _wordCountAnalyzerServiceGds.ScanSeries(libraryId, seriesId, forceUpdate, null));
         BackgroundJob.Enqueue(() => _wordCountAnalyzerService.ScanSeries(libraryId, seriesId, forceUpdate));
     }
 

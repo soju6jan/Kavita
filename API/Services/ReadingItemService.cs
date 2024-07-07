@@ -1,8 +1,10 @@
-﻿using System;
+using System;
 using API.Data.Metadata;
 using API.Entities.Enums;
 using API.Services.Tasks.Scanner.Parser;
 using Microsoft.Extensions.Logging;
+using System.Text.RegularExpressions;
+using System.IO;
 
 namespace API.Services;
 #nullable enable
@@ -28,6 +30,7 @@ public class ReadingItemService : IReadingItemService
     private readonly ImageParser _imageParser;
     private readonly BookParser _bookParser;
     private readonly PdfParser _pdfParser;
+    private readonly GdsParser _gdsParser;
 
     public ReadingItemService(IArchiveService archiveService, IBookService bookService, IImageService imageService,
         IDirectoryService directoryService, ILogger<ReadingItemService> logger)
@@ -43,7 +46,7 @@ public class ReadingItemService : IReadingItemService
         _bookParser = new BookParser(directoryService, bookService, _basicParser);
         _comicVineParser = new ComicVineParser(directoryService);
         _pdfParser = new PdfParser(directoryService);
-
+        _gdsParser = new GdsParser(directoryService, _imageParser);
     }
 
     /// <summary>
@@ -76,6 +79,10 @@ public class ReadingItemService : IReadingItemService
     {
         try
         {
+            if (type == LibraryType.GDS && Path.GetFileName(path).StartsWith("cover."))
+            {
+                return null;
+            }
             var info = Parse(path, rootPath, libraryRoot, type);
             if (info == null)
             {
@@ -100,6 +107,20 @@ public class ReadingItemService : IReadingItemService
     /// <returns></returns>
     public int GetNumberOfPages(string filePath, MangaFormat format)
     {
+        try
+        {
+            String filename = Path.GetFileNameWithoutExtension(filePath);
+            Regex re = new Regex(@"#(?<Count>\d+)$", RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(500));
+            Match match = re.Match(filename);
+            if (match.Success)
+            {
+                //_logger.LogWarning("페이지수2 : " + match.Groups["Count"].Value);
+                return Int32.Parse(match.Groups["Count"].Value);
+            }
+        }
+        catch
+        {
+        }
         switch (format)
         {
             case MangaFormat.Archive:
@@ -177,6 +198,10 @@ public class ReadingItemService : IReadingItemService
     /// <returns></returns>
     private ParserInfo? Parse(string path, string rootPath, string libraryRoot, LibraryType type)
     {
+        if (type == LibraryType.GDS)
+        {
+            return _gdsParser.Parse(path, rootPath, libraryRoot, type, null);
+        }
         if (_comicVineParser.IsApplicable(path, type))
         {
             return _comicVineParser.Parse(path, rootPath, libraryRoot, type, GetComicInfo(path));

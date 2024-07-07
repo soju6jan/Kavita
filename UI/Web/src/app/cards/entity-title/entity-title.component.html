@@ -47,5 +47,8 @@
     <ng-container *ngSwitchCase="LibraryType.Images">
       {{Number !== LooseLeafOrSpecial ? (isChapter ? (t('chapter') + ' ')  + Number : volumeTitle) : t('special')}}
     </ng-container>
+    <ng-container *ngSwitchCase="LibraryType.Gds">
+      {{seriesName + ' - ' + volumeTitle}}
+    </ng-container>
   </ng-container>
 </ng-container>

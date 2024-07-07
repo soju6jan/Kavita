@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -20,6 +21,9 @@ using Hangfire;
 using Kavita.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.IO;
+using Serilog.Debugging;
+using API.Services.Tasks.Scanner.Parser;
 
 namespace API.Services.Tasks.Scanner;
 #nullable enable
@@ -33,7 +37,7 @@ public interface IProcessSeries
     Task Prime();
 
     void Reset();
-    Task ProcessSeriesAsync(IList<ParserInfo> parsedInfos, Library library, int totalToProcess, bool forceUpdate = false);
+    Task ProcessSeriesAsync(IList<ParserInfo> parsedInfos, Library library, int totalToProcess, bool forceUpdate = false, GdsInfo gdsInfo=null);
 }
 
 /// <summary>
@@ -49,7 +53,9 @@ public class ProcessSeries : IProcessSeries
     private readonly IReadingItemService _readingItemService;
     private readonly IFileService _fileService;
     private readonly IMetadataService _metadataService;
+    private readonly IMetadataServiceGds _metadataServiceGds;
     private readonly IWordCountAnalyzerService _wordCountAnalyzerService;
+    private readonly IWordCountAnalyzerServiceGds _wordCountAnalyzerServiceGds;
     private readonly ICollectionTagService _collectionTagService;
     private readonly IReadingListService _readingListService;
     private readonly IExternalMetadataService _externalMetadataService;
@@ -58,7 +64,7 @@ public class ProcessSeries : IProcessSeries
 
     public ProcessSeries(IUnitOfWork unitOfWork, ILogger<ProcessSeries> logger, IEventHub eventHub,
         IDirectoryService directoryService, ICacheHelper cacheHelper, IReadingItemService readingItemService,
-        IFileService fileService, IMetadataService metadataService, IWordCountAnalyzerService wordCountAnalyzerService,
+        IFileService fileService, IMetadataService metadataService, IMetadataServiceGds metadataServiceGds, IWordCountAnalyzerService wordCountAnalyzerService, IWordCountAnalyzerServiceGds wordCountAnalyzerServiceGds,
         ICollectionTagService collectionTagService, IReadingListService readingListService,
         IExternalMetadataService externalMetadataService, ITagManagerService tagManagerService)
     {
@@ -70,7 +76,9 @@ public class ProcessSeries : IProcessSeries
         _readingItemService = readingItemService;
         _fileService = fileService;
         _metadataService = metadataService;
+        _metadataServiceGds = metadataServiceGds;
         _wordCountAnalyzerService = wordCountAnalyzerService;
+        _wordCountAnalyzerServiceGds = wordCountAnalyzerServiceGds;
         _collectionTagService = collectionTagService;
         _readingListService = readingListService;
         _externalMetadataService = externalMetadataService;
@@ -100,7 +108,7 @@ public class ProcessSeries : IProcessSeries
         _tagManagerService.Reset();
     }
 
-    public async Task ProcessSeriesAsync(IList<ParserInfo> parsedInfos, Library library, int totalToProcess, bool forceUpdate = false)
+    public async Task ProcessSeriesAsync(IList<ParserInfo> parsedInfos, Library library, int totalToProcess, bool forceUpdate = false, GdsInfo gdsInfo=null)
     {
         if (!parsedInfos.Any()) return;
 
@@ -139,6 +147,20 @@ public class ProcessSeries : IProcessSeries
 
         if (series.LibraryId == 0) series.LibraryId = library.Id;
 
+        if (library.Type == LibraryType.GDS && gdsInfo == null)
+        {
+            gdsInfo = GdsUtil.getGdsInfoByFile(firstInfo.FullFilePath);
+            
+        }
+        if (gdsInfo != null && gdsInfo.action["all_file_is_special"] == "true")
+        {
+            foreach(var info in parsedInfos)
+            {
+                info.IsSpecial = true;
+                info.Volumes = "-100000"; // Parser.LooseLeafVolume;
+            }
+        }
+
         try
         {
             _logger.LogInformation("[ScannerService] Processing series {SeriesName}", series.OriginalName);
@@ -146,7 +168,7 @@ public class ProcessSeries : IProcessSeries
             // parsedInfos[0] is not the first volume or chapter. We need to find it using a ComicInfo check (as it uses firstParsedInfo for series sort)
             var firstParsedInfo = parsedInfos.FirstOrDefault(p => p.ComicInfo != null, firstInfo);
 
-            await UpdateVolumes(series, parsedInfos, forceUpdate);
+            await UpdateVolumes(series, parsedInfos, forceUpdate, gdsInfo);
             series.Pages = series.Volumes.Sum(v => v.Pages);
 
             series.NormalizedName = series.Name.ToNormalized();
@@ -168,6 +190,7 @@ public class ProcessSeries : IProcessSeries
                     series.SortName = firstParsedInfo.SeriesSort;
                 }
             }
+            series.SortName = series.SortName.Normalize(System.Text.NormalizationForm.FormKD);
 
             // parsedInfos[0] is not the first volume or chapter. We need to find it
             var localizedSeries = parsedInfos.Select(p => p.LocalizedSeries).FirstOrDefault(p => !string.IsNullOrEmpty(p));
@@ -177,7 +200,7 @@ public class ProcessSeries : IProcessSeries
                 series.NormalizedLocalizedName = series.LocalizedName.ToNormalized();
             }
 
-            await UpdateSeriesMetadata(series, library);
+            await UpdateSeriesMetadata(series, library, gdsInfo);
 
             // Update series FolderPath here
             await UpdateSeriesFolderPath(parsedInfos, library, series);
@@ -267,9 +290,18 @@ public class ProcessSeries : IProcessSeries
         }
 
         var settings = await _unitOfWork.SettingsRepository.GetSettingsDtoAsync();
-        await _metadataService.GenerateCoversForSeries(series, settings.EncodeMediaAs, settings.CoverImageSize);
+
+        if (series.Library.Type != LibraryType.GDS)
+        {
+            await _metadataService.GenerateCoversForSeries(series, settings.EncodeMediaAs, settings.CoverImageSize);
+            await _wordCountAnalyzerService.ScanSeries(series.LibraryId, series.Id, forceUpdate);
+        } else {
+            await _metadataServiceGds.GenerateCoversForSeries(series, settings.EncodeMediaAs, settings.CoverImageSize, forceUpdate, gdsInfo);
+            await _wordCountAnalyzerServiceGds.ScanSeries(series.LibraryId, series.Id, forceUpdate, gdsInfo);
+        }
+        
         // BackgroundJob.Enqueue(() => _wordCountAnalyzerService.ScanSeries(series.LibraryId, series.Id, forceUpdate));
-        await _wordCountAnalyzerService.ScanSeries(series.LibraryId, series.Id, forceUpdate);
+        
     }
 
 
@@ -332,251 +364,525 @@ public class ProcessSeries : IProcessSeries
             series.LowestFolderPath = lowestFolder;
             _logger.LogDebug("Updating {Series} LowestFolderPath to {FolderPath}", series.Name, series.LowestFolderPath);
         }
+        if (library.Type == LibraryType.GDS)
+        {
+            series.FolderPath = series.LowestFolderPath;
+        }
     }
 
 
-    private async Task UpdateSeriesMetadata(Series series, Library library)
+    private async Task UpdateSeriesMetadata(Series series, Library library, GdsInfo gdsInfo)
     {
         series.Metadata ??= new SeriesMetadataBuilder().Build();
         var firstChapter = SeriesService.GetFirstChapterForMetadata(series);
 
         var firstFile = firstChapter?.Files.FirstOrDefault();
         if (firstFile == null) return;
-        if (Parser.Parser.IsPdf(firstFile.FilePath)) return;
+        // 원본은 pdf 메타 처리 없음.
+        bool isPdf = Parser.Parser.IsPdf(firstFile.FilePath);
+        if (gdsInfo == null && isPdf) return;
 
         var chapters = series.Volumes.SelectMany(volume => volume.Chapters).ToList();
 
         // Update Metadata based on Chapter metadata
         if (!series.Metadata.ReleaseYearLocked)
         {
-            series.Metadata.ReleaseYear = chapters.MinimumReleaseYear();
+            if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Year"]))
+            {
+                series.Metadata.ReleaseYear = Int32.Parse(gdsInfo.meta["Year"]);
+            } else
+            {
+                if (!isPdf) series.Metadata.ReleaseYear = chapters.MinimumReleaseYear();
+            }
         }
 
         // Set the AgeRating as highest in all the comicInfos
-        if (!series.Metadata.AgeRatingLocked) series.Metadata.AgeRating = chapters.Max(chapter => chapter.AgeRating);
-
-        DeterminePublicationStatus(series, chapters);
-
-        if (!string.IsNullOrEmpty(firstChapter?.Summary) && !series.Metadata.SummaryLocked)
+        if (!series.Metadata.AgeRatingLocked)
         {
-            series.Metadata.Summary = firstChapter.Summary;
+            if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Age Rating"]))
+            {
+                series.Metadata.AgeRating = (AgeRating)Int32.Parse(gdsInfo.meta["Age Rating"]);
+            }
+            else
+            {
+                if (!isPdf) series.Metadata.AgeRating = chapters.Max(chapter => chapter.AgeRating);
+            }
+        }
+        if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Publication Status"]))
+        {
+            series.Metadata.PublicationStatus = (PublicationStatus)Int32.Parse(gdsInfo.meta["Publication Status"]);
+        } else
+        {
+            if (!isPdf) DeterminePublicationStatus(series, chapters);
         }
 
-        if (!string.IsNullOrEmpty(firstChapter?.Language) && !series.Metadata.LanguageLocked)
+        if (!series.Metadata.SummaryLocked)
         {
-            series.Metadata.Language = firstChapter.Language;
+            if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null)
+            {
+                series.Metadata.Summary = "";
+                if (!string.IsNullOrEmpty(gdsInfo.meta["Summary"])) series.Metadata.Summary = gdsInfo.meta["Summary"];
+            } else
+            {
+                if (!isPdf && !string.IsNullOrEmpty(firstChapter?.Summary) && !series.Metadata.SummaryLocked)
+                {
+                    series.Metadata.Summary = firstChapter.Summary;
+                }
+            }
         }
 
-        if (!string.IsNullOrEmpty(firstChapter?.SeriesGroup) && library.ManageCollections)
+        if (!series.Metadata.LanguageLocked)
+        {
+            if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null)
+            { 
+                series.Metadata.Language = gdsInfo.meta["Language"];
+                if (!string.IsNullOrEmpty(gdsInfo.meta["Language"])) series.Metadata.Language = gdsInfo.meta["Language"];
+            }
+            else
+            {
+                if (!isPdf && !string.IsNullOrEmpty(firstChapter?.Language) && !series.Metadata.LanguageLocked)
+                {
+                    series.Metadata.Language = firstChapter.Language;
+                }
+            }
+        }
+
+
+        if (library.ManageCollections && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Collections"]))
         {
             // Get the default admin to associate these tags to
             var defaultAdmin = await _unitOfWork.UserRepository.GetDefaultAdminUser(AppUserIncludes.Collections);
             if (defaultAdmin == null) return;
 
             _logger.LogDebug("Collection tag(s) found for {SeriesName}, updating collections", series.Name);
-            foreach (var collection in firstChapter.SeriesGroup.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            foreach (var collection in gdsInfo.meta["Collections"].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
                 var t = await _tagManagerService.GetCollectionTag(collection, defaultAdmin);
                 if (t.Item1 == null) continue;
-
                 var tag = t.Item1;
-
-                // Check if the Series is already on the tag
                 if (tag.Items.Any(s => s.MatchesSeriesByName(series.NormalizedName, series.NormalizedLocalizedName)))
                 {
                     continue;
                 }
-
                 tag.Items.Add(series);
                 await _unitOfWork.CollectionTagRepository.UpdateCollectionAgeRating(tag);
+            }
+        }
+        else
+        {
+            if (!isPdf && !string.IsNullOrEmpty(firstChapter?.SeriesGroup) && library.ManageCollections)
+            {
+                // Get the default admin to associate these tags to
+                var defaultAdmin = await _unitOfWork.UserRepository.GetDefaultAdminUser(AppUserIncludes.Collections);
+                if (defaultAdmin == null) return;
+
+                _logger.LogDebug("Collection tag(s) found for {SeriesName}, updating collections", series.Name);
+                foreach (var collection in firstChapter.SeriesGroup.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var t = await _tagManagerService.GetCollectionTag(collection, defaultAdmin);
+                    if (t.Item1 == null) continue;
+
+                    var tag = t.Item1;
+
+                    // Check if the Series is already on the tag
+                    if (tag.Items.Any(s => s.MatchesSeriesByName(series.NormalizedName, series.NormalizedLocalizedName)))
+                    {
+                        continue;
+                    }
+
+                    tag.Items.Add(series);
+                    await _unitOfWork.CollectionTagRepository.UpdateCollectionAgeRating(tag);
+                }
             }
         }
 
         if (!series.Metadata.GenresLocked)
         {
-            var genres = chapters.SelectMany(c => c.Genres).ToList();
-            GenreHelper.KeepOnlySameGenreBetweenLists(series.Metadata.Genres.ToList(), genres, genre =>
+            if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null)
             {
-                series.Metadata.Genres.Remove(genre);
-            });
+                series.Metadata.Genres.Clear();
+                if (!string.IsNullOrEmpty(gdsInfo.meta["Genres"]))
+                {
+                    var genres = TagHelper.GetTagValues(gdsInfo.meta["Genres"]);
+                    GenreHelper.KeepOnlySameGenreBetweenLists(series.Metadata.Genres,
+                        genres.Select(g => new GenreBuilder(g).Build()).ToList());
+                    foreach (var genre in genres)
+                    {
+                        var g = await _tagManagerService.GetGenre(genre);
+                        if (g == null) continue;
+                        series.Metadata.Genres.Add(g);
+                    }
+                }
+            } else
+            {
+                if (!isPdf) { 
+                    var genres = chapters.SelectMany(c => c.Genres).ToList();
+                    GenreHelper.KeepOnlySameGenreBetweenLists(series.Metadata.Genres.ToList(), genres, genre =>
+                        {
+                            series.Metadata.Genres.Remove(genre);
+                        });
+                }
+            }
         }
 
 
         #region People
-
+        series.Metadata.People.Clear();
         // Handle People
-        foreach (var chapter in chapters)
+        if (!isPdf)
         {
-            if (!series.Metadata.WriterLocked)
+            foreach (var chapter in chapters)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Writer))
+                if (!series.Metadata.WriterLocked)
                 {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Writer))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.CoverArtistLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.CoverArtist))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.PublisherLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Publisher))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.CharacterLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Character))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.ColoristLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Colorist))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.EditorLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Editor))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.InkerLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Inker))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.ImprintLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Imprint))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.TeamLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Team))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.LocationLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Location))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.LettererLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Letterer))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.PencillerLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Penciller))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.TranslatorLocked)
+                {
+                    foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Translator))
+                    {
+                        PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
+                    }
+                }
+
+                if (!series.Metadata.TagsLocked)
+                {
+                    foreach (var tag in chapter.Tags)
+                    {
+                        TagHelper.AddTagIfNotExists(series.Metadata.Tags, tag);
+                    }
+                }
+
+                if (!series.Metadata.GenresLocked)
+                {
+                    foreach (var genre in chapter.Genres)
+                    {
+                        GenreHelper.AddGenreIfNotExists(series.Metadata.Genres, genre);
+                    }
                 }
             }
-
-            if (!series.Metadata.CoverArtistLocked)
-            {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.CoverArtist))
+            // NOTE: The issue here is that people is just from chapter, but series metadata might already have some people on it
+            // I might be able to filter out people that are in locked fields?
+            var people = chapters.SelectMany(c => c.People).ToList();
+            PersonHelper.KeepOnlySamePeopleBetweenLists(series.Metadata.People.ToList(),
+                people, person =>
                 {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                    switch (person.Role)
+                    {
+                        case PersonRole.Writer:
+                            if (!series.Metadata.WriterLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Penciller:
+                            if (!series.Metadata.PencillerLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Inker:
+                            if (!series.Metadata.InkerLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Imprint:
+                            if (!series.Metadata.ImprintLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Colorist:
+                            if (!series.Metadata.ColoristLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Letterer:
+                            if (!series.Metadata.LettererLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.CoverArtist:
+                            if (!series.Metadata.CoverArtistLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Editor:
+                            if (!series.Metadata.EditorLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Publisher:
+                            if (!series.Metadata.PublisherLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Character:
+                            if (!series.Metadata.CharacterLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Translator:
+                            if (!series.Metadata.TranslatorLocked) series.Metadata.People.Remove(person);
+                            break;
+                        case PersonRole.Other:
+                        default:
+                            series.Metadata.People.Remove(person);
+                            break;
+                    }
+                });
+
+            #endregion
+        }
+
+        if (!series.Metadata.WriterLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Writers"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Writers"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Writer);
+            foreach (var person in people)
+            {
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Writer);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.PublisherLocked)
+        if (!series.Metadata.PencillerLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Penciller"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Penciller"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Penciller);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Publisher))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Penciller);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.CharacterLocked)
+        if (!series.Metadata.PublisherLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Publisher"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Publisher"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Publisher);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Character))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Publisher);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.ColoristLocked)
+        if (!series.Metadata.CharacterLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Character"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Character"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Character);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Colorist))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Character);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.EditorLocked)
+        if (!series.Metadata.ColoristLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Colorist"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Colorist"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Colorist);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Editor))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Colorist);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.InkerLocked)
+        if (!series.Metadata.EditorLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Editor"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Editor"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Editor);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Inker))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Editor);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.ImprintLocked)
+        if (!series.Metadata.InkerLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Inker"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Inker"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Inker);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Imprint))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Inker);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.TeamLocked)
+        if (!series.Metadata.ImprintLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Imprint"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Imprint"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Imprint);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Team))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Imprint);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.LocationLocked)
+        if (!series.Metadata.TeamLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Team"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Team"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Team);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Location))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Team);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.LettererLocked)
+        if (!series.Metadata.LocationLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Location"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Location"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Location);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Letterer))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Location);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.PencillerLocked)
+        if (!series.Metadata.LettererLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Letterer"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Letterer"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Letterer);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Penciller))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Letterer);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.TranslatorLocked)
+        if (!series.Metadata.TranslatorLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person Translator"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person Translator"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.Translator);
+            foreach (var person in people)
             {
-                foreach (var person in chapter.People.Where(p => p.Role == PersonRole.Translator))
-                {
-                    PersonHelper.AddPersonIfNotExists(series.Metadata.People, person);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.Translator);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.TagsLocked)
+        if (!series.Metadata.CoverArtistLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Person CoverArtist"]))
+        {
+            var people = TagHelper.GetTagValues(gdsInfo.meta["Person CoverArtist"]);
+            PersonHelper.RemovePeople(series.Metadata.People, people, PersonRole.CoverArtist);
+            foreach (var person in people)
             {
-                foreach (var tag in chapter.Tags)
-                {
-                    TagHelper.AddTagIfNotExists(series.Metadata.Tags, tag);
-                }
+                var p = await _tagManagerService.GetPerson(person, PersonRole.CoverArtist);
+                if (p == null) continue;
+                series.Metadata.People.Add(p);
             }
+        }
 
-            if (!series.Metadata.GenresLocked)
+        if (!series.Metadata.TagsLocked && library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null)
+        {
+            series.Metadata.Tags.Clear();
+            if (!string.IsNullOrEmpty(gdsInfo.meta["Tags"]))
             {
-                foreach (var genre in chapter.Genres)
+                var tags = TagHelper.GetTagValues(gdsInfo.meta["Tags"]);
+                TagHelper.KeepOnlySameTagBetweenLists(series.Metadata.Tags, tags.Select(t => new TagBuilder(t).Build()).ToList());
+                foreach (var tag in tags)
                 {
-                    GenreHelper.AddGenreIfNotExists(series.Metadata.Genres, genre);
+                    var t = await _tagManagerService.GetTag(tag);
+                    if (t == null) continue;
+                    series.Metadata.Tags.Add(t);
                 }
             }
         }
-        // NOTE: The issue here is that people is just from chapter, but series metadata might already have some people on it
-        // I might be able to filter out people that are in locked fields?
-        var people = chapters.SelectMany(c => c.People).ToList();
-        PersonHelper.KeepOnlySamePeopleBetweenLists(series.Metadata.People.ToList(),
-            people, person =>
-            {
-                switch (person.Role)
-                {
-                    case PersonRole.Writer:
-                        if (!series.Metadata.WriterLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Penciller:
-                        if (!series.Metadata.PencillerLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Inker:
-                        if (!series.Metadata.InkerLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Imprint:
-                        if (!series.Metadata.ImprintLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Colorist:
-                        if (!series.Metadata.ColoristLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Letterer:
-                        if (!series.Metadata.LettererLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.CoverArtist:
-                        if (!series.Metadata.CoverArtistLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Editor:
-                        if (!series.Metadata.EditorLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Publisher:
-                        if (!series.Metadata.PublisherLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Character:
-                        if (!series.Metadata.CharacterLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Translator:
-                        if (!series.Metadata.TranslatorLocked) series.Metadata.People.Remove(person);
-                        break;
-                    case PersonRole.Other:
-                    default:
-                        series.Metadata.People.Remove(person);
-                        break;
-                }
-            });
 
-        #endregion
 
+        if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null)
+        { 
+            series.Metadata.WebLinks = "";
+            if (!string.IsNullOrEmpty(gdsInfo.meta["Web Links"])) series.Metadata.WebLinks = string.Join(",", gdsInfo.meta["Web Links"].Split(",", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            );
+        }
     }
 
     private void DeterminePublicationStatus(Series series, List<Chapter> chapters)
@@ -637,11 +943,13 @@ public class ProcessSeries : IProcessSeries
         }
     }
 
-    private async Task UpdateVolumes(Series series, IList<ParserInfo> parsedInfos, bool forceUpdate = false)
+    private async Task UpdateVolumes(Series series, IList<ParserInfo> parsedInfos, bool forceUpdate = false, GdsInfo gdsInfo=null)
     {
         // Add new volumes and update chapters per volume
         var distinctVolumes = parsedInfos.DistinctVolumes();
         _logger.LogDebug("[ScannerService] Updating {DistinctVolumes} volumes on {SeriesName}", distinctVolumes.Count, series.Name);
+
+        
         foreach (var volumeNumber in distinctVolumes)
         {
             Volume? volume;
@@ -671,7 +979,7 @@ public class ProcessSeries : IProcessSeries
 
             _logger.LogDebug("[ScannerService] Parsing {SeriesName} - Volume {VolumeNumber}", series.Name, volume.Name);
             var infos = parsedInfos.Where(p => p.Volumes == volumeNumber).ToArray();
-            UpdateChapters(series, volume, infos, forceUpdate);
+            UpdateChapters(series, volume, infos, forceUpdate, gdsInfo);
             volume.Pages = volume.Chapters.Sum(c => c.Pages);
 
             // Update all the metadata on the Chapters
@@ -718,8 +1026,9 @@ public class ProcessSeries : IProcessSeries
         }
     }
 
-    private void UpdateChapters(Series series, Volume volume, IList<ParserInfo> parsedInfos, bool forceUpdate = false)
+    private void UpdateChapters(Series series, Volume volume, IList<ParserInfo> parsedInfos, bool forceUpdate = false, GdsInfo gdsInfo=null)
     {
+        
         // Add new chapters
         foreach (var info in parsedInfos)
         {
@@ -735,7 +1044,7 @@ public class ProcessSeries : IProcessSeries
                 _logger.LogError(ex, "{FileName} mapped as '{Series} - Vol {Volume} Ch {Chapter}' is a duplicate, skipping", info.FullFilePath, info.Series, info.Volumes, info.Chapters);
                 continue;
             }
-
+            
             if (chapter == null)
             {
                 _logger.LogDebug(
@@ -754,7 +1063,7 @@ public class ProcessSeries : IProcessSeries
                 continue;
             }
             // Add files
-            AddOrUpdateFileForChapter(chapter, info, forceUpdate);
+            AddOrUpdateFileForChapter(chapter, info, forceUpdate, gdsInfo);
 
             // TODO: Investigate using the ChapterBuilder here
             chapter.Number = Parser.Parser.MinNumberFromRange(info.Chapters).ToString(CultureInfo.InvariantCulture);
@@ -796,7 +1105,7 @@ public class ProcessSeries : IProcessSeries
         }
     }
 
-    private void AddOrUpdateFileForChapter(Chapter chapter, ParserInfo info, bool forceUpdate = false)
+    private void AddOrUpdateFileForChapter(Chapter chapter, ParserInfo info, bool forceUpdate = false, GdsInfo gdsInfo=null)
     {
         chapter.Files ??= new List<MangaFile>();
         var existingFile = chapter.Files.SingleOrDefault(f => f.FilePath == info.FullFilePath);
@@ -805,7 +1114,19 @@ public class ProcessSeries : IProcessSeries
         {
             existingFile.Format = info.Format;
             if (!forceUpdate && !_fileService.HasFileBeenModifiedSince(existingFile.FilePath, existingFile.LastModified) && existingFile.Pages != 0) return;
-            existingFile.Pages = _readingItemService.GetNumberOfPages(info.FullFilePath, info.Format);
+            bool flagPage = false;
+            if (gdsInfo != null) // && gdsInfo.files.Contains()
+            {
+                var key = Path.GetFileName(existingFile.FilePath);
+                var gdsFile = GdsUtil.GetGdsFile(gdsInfo, key);
+                if (gdsFile != null)
+                {
+                    existingFile.Pages = gdsFile.page;
+                    flagPage = true;
+                }
+            }
+            if (flagPage == false)
+                existingFile.Pages = _readingItemService.GetNumberOfPages(info.FullFilePath, info.Format);
             existingFile.Extension = fileInfo.Extension.ToLowerInvariant();
             existingFile.FileName = Parser.Parser.RemoveExtensionIfSupported(existingFile.FilePath);
             existingFile.FilePath = Parser.Parser.NormalizePath(existingFile.FilePath);
@@ -814,8 +1135,21 @@ public class ProcessSeries : IProcessSeries
         }
         else
         {
-
-            var file = new MangaFileBuilder(info.FullFilePath, info.Format, _readingItemService.GetNumberOfPages(info.FullFilePath, info.Format))
+            var pages = 1;
+            bool flagPage = false;
+            if (gdsInfo != null) // && gdsInfo.files.Contains()
+            {
+                var key = Path.GetFileName(info.FullFilePath);
+                var gdsFile = GdsUtil.GetGdsFile(gdsInfo, key);
+                if (gdsFile != null)
+                {
+                    pages = gdsFile.page;
+                    flagPage = true;
+                }
+            }
+            if (flagPage == false)
+                pages = _readingItemService.GetNumberOfPages(info.FullFilePath, info.Format);
+            var file = new MangaFileBuilder(info.FullFilePath, info.Format, pages)
                 .WithExtension(fileInfo.Extension)
                 .WithBytes(fileInfo.Length)
                 .Build();

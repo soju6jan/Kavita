@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -12,11 +13,12 @@ using API.Helpers;
 using API.SignalR;
 using Hangfire;
 using Microsoft.Extensions.Logging;
+using API.Services.Tasks;
 
 namespace API.Services;
 #nullable enable
 
-public interface IMetadataService
+public interface IMetadataServiceGds
 {
     /// <summary>
     /// Recalculates cover images for all entities in a library.
@@ -33,22 +35,24 @@ public interface IMetadataService
     /// <param name="seriesId"></param>
     /// <param name="forceUpdate">Overrides any cache logic and forces execution</param>
 
-    Task GenerateCoversForSeries(int libraryId, int seriesId, bool forceUpdate = true);
-    Task GenerateCoversForSeries(Series series, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceUpdate = false);
+    Task GenerateCoversForSeries(int libraryId, int seriesId, bool forceUpdate = true, GdsInfo gdsInfo=null);
+    Task GenerateCoversForSeries(Series series, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceUpdate = false, GdsInfo gdsInfo=null);
     Task RemoveAbandonedMetadataKeys();
 }
 
-public class MetadataService : IMetadataService
+
+
+public class MetadataServiceGds : IMetadataServiceGds
 {
-    public const string Name = "MetadataService";
+    public const string Name = "MetadataServiceGDS";
     private readonly IUnitOfWork _unitOfWork;
-    private readonly ILogger<MetadataService> _logger;
+    private readonly ILogger<MetadataServiceGds> _logger;
     private readonly IEventHub _eventHub;
     private readonly ICacheHelper _cacheHelper;
     private readonly IReadingItemService _readingItemService;
     private readonly IDirectoryService _directoryService;
     private readonly IList<SignalRMessage> _updateEvents = new List<SignalRMessage>();
-    public MetadataService(IUnitOfWork unitOfWork, ILogger<MetadataService> logger,
+    public MetadataServiceGds(IUnitOfWork unitOfWork, ILogger<MetadataServiceGds> logger,
         IEventHub eventHub, ICacheHelper cacheHelper,
         IReadingItemService readingItemService, IDirectoryService directoryService)
     {
@@ -66,7 +70,7 @@ public class MetadataService : IMetadataService
     /// <param name="chapter"></param>
     /// <param name="forceUpdate">Force updating cover image even if underlying file has not been modified or chapter already has a cover image</param>
     /// <param name="encodeFormat">Convert image to Encoding Format when extracting the cover</param>
-    private Task<bool> UpdateChapterCoverImage(Chapter chapter, bool forceUpdate, EncodeFormat encodeFormat, CoverImageSize coverImageSize)
+    private Task<bool> UpdateChapterCoverImage(Chapter chapter, bool forceUpdate, EncodeFormat encodeFormat, CoverImageSize coverImageSize, GdsInfo gdsInfo)
     {
         var firstFile = chapter.Files.MinBy(x => x.Chapter);
         if (firstFile == null) return Task.FromResult(false);
@@ -75,12 +79,32 @@ public class MetadataService : IMetadataService
                 firstFile, chapter.Created, forceUpdate, chapter.CoverImageLocked))
             return Task.FromResult(false);
 
-
-
-        _logger.LogDebug("[MetadataService] Generating cover image for {File}", firstFile.FilePath);
-
-        chapter.CoverImage = _readingItemService.GetCoverImage(firstFile.FilePath,
+        _logger.LogDebug("[MetadataServiceGDS] Generating cover image for {File}", firstFile.FilePath);
+                
+        bool flagGdsInfo = false;
+        if (gdsInfo != null) // && gdsInfo.files.Contains()
+        {
+            var key = Path.GetFileName(firstFile.FilePath);
+            var gdsFile = GdsUtil.GetGdsFile(gdsInfo, key);
+            if (gdsFile != null)
+            {
+                //existingFile.Pages = gdsFile.page;
+                //flagGdsInfo = true;
+                var filePath = Path.Join(_directoryService.CoverImageDirectory, ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId)) + ".png";
+                flagGdsInfo = GdsUtil.saveCover(filePath, gdsFile.cover);
+                _logger.LogDebug("[MetadataServiceGDS] info로 썸네일 생성. {key} {flagGdsInfo}", key, flagGdsInfo);
+                if (flagGdsInfo)
+                {
+                    chapter.CoverImage = ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId) + ".png";
+                }
+            }
+        }
+        if (flagGdsInfo == false)
+        {
+            _logger.LogError("[MetadataServiceGDS] 파일오픈시도 - 커버 {File}", firstFile.FilePath);
+            chapter.CoverImage = _readingItemService.GetCoverImage(firstFile.FilePath,
             ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId), firstFile.Format, encodeFormat, coverImageSize);
+        }
         _unitOfWork.ChapterRepository.Update(chapter);
 
         _updateEvents.Add(MessageFactory.CoverUpdateEvent(chapter.Id, MessageFactoryEntityTypes.Chapter));
@@ -138,7 +162,41 @@ public class MetadataService : IMetadataService
             return Task.CompletedTask;
 
         series.Volumes ??= [];
-        series.CoverImage = series.GetCoverImage();
+
+        var firstChapter = SeriesService.GetFirstChapterForMetadata(series);
+        var firstFile = firstChapter?.Files.FirstOrDefault();
+        
+
+        string coverFilepath = Path.Join(Path.GetDirectoryName(firstFile.FilePath), "cover.jpg");
+        string newCoverImage = "_s" + series.Id + ".jpg";
+        if (File.Exists(coverFilepath) == false)
+        {
+            coverFilepath = Path.Join(Path.GetDirectoryName(firstFile.FilePath), "cover.png");
+            newCoverImage = "_s" + series.Id + ".png";
+        }
+        string configCoverFilepath = Path.Join(_directoryService.CoverImageDirectory, newCoverImage);
+        bool flagCover = false;
+        if (File.Exists(coverFilepath) && !File.Exists(configCoverFilepath))
+        {
+            System.IO.File.Copy(coverFilepath, configCoverFilepath, true);
+        }
+        else if (File.Exists(coverFilepath) && File.Exists(configCoverFilepath) && (new FileInfo(coverFilepath).Length != new FileInfo(configCoverFilepath).Length))
+        {
+            System.IO.File.Copy(coverFilepath, configCoverFilepath, true);
+        }
+        if (!File.Exists(coverFilepath) && File.Exists(configCoverFilepath))
+        {
+            File.Delete(configCoverFilepath);
+            flagCover = false;
+        }
+        if (File.Exists(configCoverFilepath))
+        {
+            flagCover = true;
+            series.CoverImage = newCoverImage;
+        }
+
+        if (flagCover == false)
+            series.CoverImage = series.GetCoverImage();
 
         _updateEvents.Add(MessageFactory.CoverUpdateEvent(series.Id, MessageFactoryEntityTypes.Series));
         return Task.CompletedTask;
@@ -151,9 +209,9 @@ public class MetadataService : IMetadataService
     /// <param name="series"></param>
     /// <param name="forceUpdate"></param>
     /// <param name="encodeFormat"></param>
-    private async Task ProcessSeriesCoverGen(Series series, bool forceUpdate, EncodeFormat encodeFormat, CoverImageSize coverImageSize)
+    private async Task ProcessSeriesCoverGen(Series series, bool forceUpdate, EncodeFormat encodeFormat, CoverImageSize coverImageSize, GdsInfo gdsInfo)
     {
-        _logger.LogDebug("[MetadataService] Processing cover image generation for series: {SeriesName}", series.OriginalName);
+        _logger.LogDebug("[MetadataServiceGDS] Processing cover image generation for series: {SeriesName}", series.OriginalName);
         try
         {
             var volumeIndex = 0;
@@ -164,7 +222,7 @@ public class MetadataService : IMetadataService
                 var index = 0;
                 foreach (var chapter in volume.Chapters)
                 {
-                    var chapterUpdated = await UpdateChapterCoverImage(chapter, forceUpdate, encodeFormat, coverImageSize);
+                    var chapterUpdated = await UpdateChapterCoverImage(chapter, forceUpdate, encodeFormat, coverImageSize, gdsInfo);
                     // If cover was update, either the file has changed or first scan and we should force a metadata update
                     UpdateChapterLastModified(chapter, forceUpdate || chapterUpdated);
                     if (index == 0 && chapterUpdated)
@@ -187,7 +245,7 @@ public class MetadataService : IMetadataService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[MetadataService] There was an exception during cover generation for {SeriesName} ", series.Name);
+            _logger.LogError(ex, "[MetadataServiceGDS] There was an exception during cover generation for {SeriesName} ", series.Name);
         }
     }
 
@@ -204,15 +262,14 @@ public class MetadataService : IMetadataService
     {
         var library = await _unitOfWork.LibraryRepository.GetLibraryForIdAsync(libraryId);
         if (library == null) return;
-        if (library.Type == LibraryType.GDS) return;
-        _logger.LogInformation("[MetadataService] Beginning cover generation refresh of {LibraryName}", library.Name);
+        _logger.LogInformation("[MetadataServiceGDS] Beginning cover generation refresh of {LibraryName}", library.Name);
 
         _updateEvents.Clear();
 
         var chunkInfo = await _unitOfWork.SeriesRepository.GetChunkInfo(library.Id);
         var stopwatch = Stopwatch.StartNew();
         var totalTime = 0L;
-        _logger.LogInformation("[MetadataService] Refreshing Library {LibraryName} for cover generation. Total Items: {TotalSize}. Total Chunks: {TotalChunks} with {ChunkSize} size", library.Name, chunkInfo.TotalSize, chunkInfo.TotalChunks, chunkInfo.ChunkSize);
+        _logger.LogInformation("[MetadataServiceGDS] Refreshing Library {LibraryName} for cover generation. Total Items: {TotalSize}. Total Chunks: {TotalChunks} with {ChunkSize} size", library.Name, chunkInfo.TotalSize, chunkInfo.TotalChunks, chunkInfo.ChunkSize);
 
         await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress,
             MessageFactory.CoverUpdateProgressEvent(library.Id, 0F, ProgressEventType.Started, $"Starting {library.Name}"));
@@ -227,7 +284,7 @@ public class MetadataService : IMetadataService
             totalTime += stopwatch.ElapsedMilliseconds;
             stopwatch.Restart();
 
-            _logger.LogDebug("[MetadataService] Processing chunk {ChunkNumber} / {TotalChunks} with size {ChunkSize}. Series ({SeriesStart} - {SeriesEnd})",
+            _logger.LogDebug("[MetadataServiceGDS] Processing chunk {ChunkNumber} / {TotalChunks} with size {ChunkSize}. Series ({SeriesStart} - {SeriesEnd})",
                 chunk, chunkInfo.TotalChunks, chunkInfo.ChunkSize, chunk * chunkInfo.ChunkSize, (chunk + 1) * chunkInfo.ChunkSize);
 
             var nonLibrarySeries = await _unitOfWork.SeriesRepository.GetFullSeriesForLibraryIdAsync(library.Id,
@@ -236,7 +293,7 @@ public class MetadataService : IMetadataService
                     PageNumber = chunk,
                     PageSize = chunkInfo.ChunkSize
                 });
-            _logger.LogDebug("[MetadataService] Fetched {SeriesCount} series for refresh", nonLibrarySeries.Count);
+            _logger.LogDebug("[MetadataServiceGDS] Fetched {SeriesCount} series for refresh", nonLibrarySeries.Count);
 
             var seriesIndex = 0;
             foreach (var series in nonLibrarySeries)
@@ -249,11 +306,12 @@ public class MetadataService : IMetadataService
 
                 try
                 {
-                    await ProcessSeriesCoverGen(series, forceUpdate, encodeFormat, coverImageSize);
+                    GdsInfo gdsInfo = GdsUtil.getGdsInfoBySeries(series);
+                    await ProcessSeriesCoverGen(series, forceUpdate, encodeFormat, coverImageSize, gdsInfo);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "[MetadataService] There was an exception during cover generation refresh for {SeriesName}", series.Name);
+                    _logger.LogError(ex, "[MetadataServiceGDS] There was an exception during cover generation refresh for {SeriesName}", series.Name);
                 }
                 seriesIndex++;
             }
@@ -263,14 +321,14 @@ public class MetadataService : IMetadataService
             await FlushEvents();
 
             _logger.LogInformation(
-                "[MetadataService] Processed {SeriesStart} - {SeriesEnd} out of {TotalSeries} series in {ElapsedScanTime} milliseconds for {LibraryName}",
+                "[MetadataServiceGDS] Processed {SeriesStart} - {SeriesEnd} out of {TotalSeries} series in {ElapsedScanTime} milliseconds for {LibraryName}",
                 chunk * chunkInfo.ChunkSize, (chunk * chunkInfo.ChunkSize) + nonLibrarySeries.Count, chunkInfo.TotalSize, stopwatch.ElapsedMilliseconds, library.Name);
         }
 
         await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress,
             MessageFactory.CoverUpdateProgressEvent(library.Id, 1F, ProgressEventType.Ended, $"Complete"));
 
-        _logger.LogInformation("[MetadataService] Updated covers for {SeriesNumber} series in library {LibraryName} in {ElapsedMilliseconds} milliseconds total", chunkInfo.TotalSize, library.Name, totalTime);
+        _logger.LogInformation("[MetadataServiceGDS] Updated covers for {SeriesNumber} series in library {LibraryName} in {ElapsedMilliseconds} milliseconds total", chunkInfo.TotalSize, library.Name, totalTime);
     }
 
 
@@ -290,20 +348,22 @@ public class MetadataService : IMetadataService
     /// <param name="libraryId"></param>
     /// <param name="seriesId"></param>
     /// <param name="forceUpdate">Overrides any cache logic and forces execution</param>
-    public async Task GenerateCoversForSeries(int libraryId, int seriesId, bool forceUpdate = true)
+    public async Task GenerateCoversForSeries(int libraryId, int seriesId, bool forceUpdate = true, GdsInfo gdsInfo=null)
     {
         var series = await _unitOfWork.SeriesRepository.GetFullSeriesForSeriesIdAsync(seriesId);
         if (series == null)
         {
-            _logger.LogError("[MetadataService] Series {SeriesId} was not found on Library {LibraryId}", seriesId, libraryId);
+            _logger.LogError("[MetadataServiceGDS] Series {SeriesId} was not found on Library {LibraryId}", seriesId, libraryId);
             return;
         }
-        if (series.Library.Type == LibraryType.GDS) return;
-
+        if (gdsInfo == null)
+        {
+            gdsInfo = GdsUtil.getGdsInfoBySeries(series);
+        }
         var settings = await _unitOfWork.SettingsRepository.GetSettingsDtoAsync();
         var encodeFormat = settings.EncodeMediaAs;
         var coverImageSize = settings.CoverImageSize;
-        await GenerateCoversForSeries(series, encodeFormat, coverImageSize, forceUpdate);
+        await GenerateCoversForSeries(series, encodeFormat, coverImageSize, forceUpdate, gdsInfo);
     }
 
     /// <summary>
@@ -312,19 +372,19 @@ public class MetadataService : IMetadataService
     /// <param name="series">A full Series, with metadata, chapters, etc</param>
     /// <param name="encodeFormat">When saving the file, what encoding should be used</param>
     /// <param name="forceUpdate"></param>
-    public async Task GenerateCoversForSeries(Series series, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceUpdate = false)
+    public async Task GenerateCoversForSeries(Series series, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceUpdate = false, GdsInfo gdsInfo=null)
     {
         var sw = Stopwatch.StartNew();
         await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress,
             MessageFactory.CoverUpdateProgressEvent(series.LibraryId, 0F, ProgressEventType.Started, series.Name));
 
-        await ProcessSeriesCoverGen(series, forceUpdate, encodeFormat, coverImageSize);
+        await ProcessSeriesCoverGen(series, forceUpdate, encodeFormat, coverImageSize, gdsInfo);
 
 
         if (_unitOfWork.HasChanges())
         {
             await _unitOfWork.CommitAsync();
-            _logger.LogInformation("[MetadataService] Updated covers for {SeriesName} in {ElapsedMilliseconds} milliseconds", series.Name, sw.ElapsedMilliseconds);
+            _logger.LogInformation("[MetadataServiceGDS] Updated covers for {SeriesName} in {ElapsedMilliseconds} milliseconds", series.Name, sw.ElapsedMilliseconds);
         }
 
         await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress,
@@ -344,4 +404,10 @@ public class MetadataService : IMetadataService
         }
         _updateEvents.Clear();
     }
+
+
+    
 }
+
+
+

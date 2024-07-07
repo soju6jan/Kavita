@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,20 +16,21 @@ using VersOne.Epub;
 namespace API.Services.Tasks.Metadata;
 #nullable enable
 
-public interface IWordCountAnalyzerService
+
+public interface IWordCountAnalyzerServiceGds
 {
     [DisableConcurrentExecution(timeoutInSeconds: 60 * 60 * 60)]
     [AutomaticRetry(Attempts = 2, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
     Task ScanLibrary(int libraryId, bool forceUpdate = false);
-    Task ScanSeries(int libraryId, int seriesId, bool forceUpdate = true);
+    Task ScanSeries(int libraryId, int seriesId, bool forceUpdate = true, GdsInfo gdsInfo = null);
 }
 
 /// <summary>
 /// This service is a metadata task that generates information around time to read
 /// </summary>
-public class WordCountAnalyzerService : IWordCountAnalyzerService
+public class WordCountAnalyzerServiceGds : IWordCountAnalyzerServiceGds
 {
-    private readonly ILogger<WordCountAnalyzerService> _logger;
+    private readonly ILogger<WordCountAnalyzerServiceGds> _logger;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IEventHub _eventHub;
     private readonly ICacheHelper _cacheHelper;
@@ -37,7 +39,7 @@ public class WordCountAnalyzerService : IWordCountAnalyzerService
 
     private const int AverageCharactersPerWord = 5;
 
-    public WordCountAnalyzerService(ILogger<WordCountAnalyzerService> logger, IUnitOfWork unitOfWork, IEventHub eventHub,
+    public WordCountAnalyzerServiceGds(ILogger<WordCountAnalyzerServiceGds> logger, IUnitOfWork unitOfWork, IEventHub eventHub,
         ICacheHelper cacheHelper, IReaderService readerService, IMediaErrorService mediaErrorService)
     {
         _logger = logger;
@@ -56,7 +58,6 @@ public class WordCountAnalyzerService : IWordCountAnalyzerService
         var sw = Stopwatch.StartNew();
         var library = await _unitOfWork.LibraryRepository.GetLibraryForIdAsync(libraryId);
         if (library == null) return;
-        if (library.Type == LibraryType.GDS) return;
 
         await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress,
             MessageFactory.WordCountAnalyzerProgressEvent(libraryId, 0F, ProgressEventType.Started, string.Empty));
@@ -95,11 +96,12 @@ public class WordCountAnalyzerService : IWordCountAnalyzerService
 
                 try
                 {
-                    await ProcessSeries(series, forceUpdate, false);
+                    GdsInfo gdsInfo = GdsUtil.getGdsInfoBySeries(series);
+                    await ProcessSeries(series, forceUpdate, false, gdsInfo);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "[MetadataService] There was an exception during metadata refresh for {SeriesName}", series.Name);
+                    _logger.LogError(ex, "[MetadataServiceGDS] There was an exception during metadata refresh for {SeriesName}", series.Name);
                 }
                 seriesIndex++;
             }
@@ -122,7 +124,7 @@ public class WordCountAnalyzerService : IWordCountAnalyzerService
 
     }
 
-    public async Task ScanSeries(int libraryId, int seriesId, bool forceUpdate = true)
+    public async Task ScanSeries(int libraryId, int seriesId, bool forceUpdate = true, GdsInfo gdsInfo = null)
     {
         var sw = Stopwatch.StartNew();
         var series = await _unitOfWork.SeriesRepository.GetFullSeriesForSeriesIdAsync(seriesId);
@@ -131,12 +133,11 @@ public class WordCountAnalyzerService : IWordCountAnalyzerService
             _logger.LogError("[WordCountAnalyzerService] Series {SeriesId} was not found on Library {LibraryId}", seriesId, libraryId);
             return;
         }
-        if (series.Library.Type == LibraryType.GDS) return;
 
         await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress,
             MessageFactory.WordCountAnalyzerProgressEvent(libraryId, 0F, ProgressEventType.Started, series.Name));
 
-        await ProcessSeries(series, forceUpdate);
+        await ProcessSeries(series, forceUpdate, true, gdsInfo);
 
         if (_unitOfWork.HasChanges())
         {
@@ -150,7 +151,7 @@ public class WordCountAnalyzerService : IWordCountAnalyzerService
     }
 
 
-    private async Task ProcessSeries(Series series, bool forceUpdate = false, bool useFileName = true)
+    private async Task ProcessSeries(Series series, bool forceUpdate = false, bool useFileName = true, GdsInfo gdsInfo=null)
     {
         var isEpub = series.Format == MangaFormat.Epub;
         var existingWordCount = series.WordCount;
@@ -171,7 +172,21 @@ public class WordCountAnalyzerService : IWordCountAnalyzerService
                     continue;
                 }
 
-                if (series.Format == MangaFormat.Epub)
+                bool flagGdsInfo = false;
+                if (gdsInfo != null) 
+                {
+                    var key = Path.GetFileName(firstFile.FilePath);
+                    var gdsFile = GdsUtil.GetGdsFile(gdsInfo, key);
+                    if (gdsFile != null)
+                    {
+                        chapter.WordCount = gdsFile.wordcount;
+                        series.WordCount += chapter.WordCount;
+                        volume.WordCount += chapter.WordCount;
+                        flagGdsInfo = true;
+                    }
+                }
+
+                if (flagGdsInfo==false && series.Format == MangaFormat.Epub)
                 {
                     long sum = 0;
                     var fileCounter = 1;

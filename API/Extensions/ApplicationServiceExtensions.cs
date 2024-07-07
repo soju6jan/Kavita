@@ -1,4 +1,4 @@
-﻿using System.IO.Abstractions;
+using System.IO.Abstractions;
 using API.Constants;
 using API.Data;
 using API.Helpers;
@@ -56,7 +56,9 @@ public static class ApplicationServiceExtensions
 
         services.AddScoped<IScannerService, ScannerService>();
         services.AddScoped<IMetadataService, MetadataService>();
+        services.AddScoped<IMetadataServiceGds, MetadataServiceGds>();
         services.AddScoped<IWordCountAnalyzerService, WordCountAnalyzerService>();
+        services.AddScoped<IWordCountAnalyzerServiceGds, WordCountAnalyzerServiceGds>();
         services.AddScoped<ILibraryWatcher, LibraryWatcher>();
         services.AddScoped<ITachiyomiService, TachiyomiService>();
         services.AddScoped<ICollectionTagService, CollectionTagService>();
