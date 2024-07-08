@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -183,7 +183,9 @@ public class StatsService : IStatsService
             KavitaVersion = serverSettings.InstallVersion,
             IsDocker = OsInfo.IsDocker,
             FirstInstallDate = serverSettings.FirstInstallDate,
-            FirstInstallVersion = serverSettings.FirstInstallVersion
+            FirstInstallVersion = serverSettings.FirstInstallVersion,
+            // SOJU6JAN
+            ModVersion = "0.2.2"
         };
     }
 

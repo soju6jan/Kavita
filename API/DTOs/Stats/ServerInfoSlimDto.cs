@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace API.DTOs.Stats;
 
@@ -28,4 +28,5 @@ public class ServerInfoSlimDto
     /// </summary>
     public string? FirstInstallVersion { get; set; }
 
+    public string? ModVersion { get; set; }
 }

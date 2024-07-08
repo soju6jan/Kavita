@@ -101,7 +101,8 @@ public class MetadataServiceGds : IMetadataServiceGds
         }
         if (flagGdsInfo == false)
         {
-            _logger.LogError("[MetadataServiceGDS] 파일오픈시도 - 커버 {File}", firstFile.FilePath);
+            // SOJU6JAN READ POINT - 커버
+            _logger.LogError("[MetadataServiceGDS] 파일 오픈 시도 - 커버 {File}", firstFile.FilePath);
             chapter.CoverImage = _readingItemService.GetCoverImage(firstFile.FilePath,
             ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId), firstFile.Format, encodeFormat, coverImageSize);
         }

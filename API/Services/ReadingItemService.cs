@@ -5,6 +5,7 @@ using API.Services.Tasks.Scanner.Parser;
 using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using System.IO;
+using System.IO.Abstractions;
 
 namespace API.Services;
 #nullable enable
@@ -121,6 +122,8 @@ public class ReadingItemService : IReadingItemService
         catch
         {
         }
+        // soju6jan read point
+        _logger.LogError("ReadingItemService 파일 오픈 시도 - 페이지수 {FilePath}", filePath);
         switch (format)
         {
             case MangaFormat.Archive:
