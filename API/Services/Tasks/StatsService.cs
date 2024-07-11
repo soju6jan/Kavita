@@ -185,7 +185,7 @@ public class StatsService : IStatsService
             FirstInstallDate = serverSettings.FirstInstallDate,
             FirstInstallVersion = serverSettings.FirstInstallVersion,
             // SOJU6JAN
-            ModVersion = "0.2.2"
+            ModVersion = "0.2.4"
         };
     }
 

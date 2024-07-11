@@ -123,7 +123,7 @@ public class ReadingItemService : IReadingItemService
         {
         }
         // soju6jan read point
-        _logger.LogError("ReadingItemService 파일 오픈 시도 - 페이지수 {FilePath}", filePath);
+        _logger.LogWarning("ReadingItemService 파일 오픈 시도 - 페이지수 {FilePath}", filePath);
         switch (format)
         {
             case MangaFormat.Archive:

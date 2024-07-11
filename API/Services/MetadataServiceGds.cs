@@ -82,6 +82,7 @@ public class MetadataServiceGds : IMetadataServiceGds
         _logger.LogDebug("[MetadataServiceGDS] Generating cover image for {File}", firstFile.FilePath);
                 
         bool flagGdsInfo = false;
+        bool flagFirst = false;
         if (gdsInfo != null) // && gdsInfo.files.Contains()
         {
             var key = Path.GetFileName(firstFile.FilePath);
@@ -90,25 +91,34 @@ public class MetadataServiceGds : IMetadataServiceGds
             {
                 //existingFile.Pages = gdsFile.page;
                 //flagGdsInfo = true;
-                var filePath = Path.Join(_directoryService.CoverImageDirectory, ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId)) + ".png";
-                flagGdsInfo = GdsUtil.saveCover(filePath, gdsFile.cover);
-                _logger.LogDebug("[MetadataServiceGDS] info로 썸네일 생성. {key} {flagGdsInfo}", key, flagGdsInfo);
-                if (flagGdsInfo)
+                if (gdsFile.cover == "FIRST")
                 {
-                    chapter.CoverImage = ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId) + ".png";
+                    flagFirst = true;
+                } else
+                {
+                    var filePath = Path.Join(_directoryService.CoverImageDirectory, ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId)) + ".png";
+                    flagGdsInfo = GdsUtil.saveCover(filePath, gdsFile.cover);
+                    _logger.LogDebug("[MetadataServiceGDS] info로 썸네일 생성. {key} {flagGdsInfo}", key, flagGdsInfo);
+                    if (flagGdsInfo)
+                    {
+                        chapter.CoverImage = ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId) + ".png";
+                    }
                 }
             }
         }
-        if (flagGdsInfo == false)
+        if (flagFirst == false)
         {
-            // SOJU6JAN READ POINT - 커버
-            _logger.LogError("[MetadataServiceGDS] 파일 오픈 시도 - 커버 {File}", firstFile.FilePath);
-            chapter.CoverImage = _readingItemService.GetCoverImage(firstFile.FilePath,
-            ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId), firstFile.Format, encodeFormat, coverImageSize);
-        }
-        _unitOfWork.ChapterRepository.Update(chapter);
+            if (flagGdsInfo == false)
+            {
+                // SOJU6JAN READ POINT - 커버
+                _logger.LogWarning("[MetadataServiceGDS] 파일 오픈 시도 - 커버 {File}", firstFile.FilePath);
+                chapter.CoverImage = _readingItemService.GetCoverImage(firstFile.FilePath,
+                ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId), firstFile.Format, encodeFormat, coverImageSize);
+            }
+            _unitOfWork.ChapterRepository.Update(chapter);
 
-        _updateEvents.Add(MessageFactory.CoverUpdateEvent(chapter.Id, MessageFactoryEntityTypes.Chapter));
+            _updateEvents.Add(MessageFactory.CoverUpdateEvent(chapter.Id, MessageFactoryEntityTypes.Chapter));
+        }
         return Task.FromResult(true);
     }
 
@@ -125,7 +135,7 @@ public class MetadataServiceGds : IMetadataServiceGds
     /// </summary>
     /// <param name="volume"></param>
     /// <param name="forceUpdate">Force updating cover image even if underlying file has not been modified or chapter already has a cover image</param>
-    private Task<bool> UpdateVolumeCoverImage(Volume? volume, bool forceUpdate)
+    private Task<bool> UpdateVolumeCoverImage(API.Entities.Volume? volume, bool forceUpdate)
     {
         // We need to check if Volume coverImage matches first chapters if forceUpdate is false
         if (volume == null || !_cacheHelper.ShouldUpdateCoverImage(
@@ -174,6 +184,11 @@ public class MetadataServiceGds : IMetadataServiceGds
         {
             coverFilepath = Path.Join(Path.GetDirectoryName(firstFile.FilePath), "cover.png");
             newCoverImage = "_s" + series.Id + ".png";
+            if (File.Exists(coverFilepath) == false)
+            {
+                coverFilepath = Path.Join(Path.GetDirectoryName(firstFile.FilePath), "cover.webp");
+                newCoverImage = "_s" + series.Id + ".webp";
+            }
         }
         string configCoverFilepath = Path.Join(_directoryService.CoverImageDirectory, newCoverImage);
         bool flagCover = false;
@@ -230,7 +245,6 @@ public class MetadataServiceGds : IMetadataServiceGds
                     {
                         firstChapterUpdated = true;
                     }
-
                     index++;
                 }
 
@@ -242,6 +256,34 @@ public class MetadataServiceGds : IMetadataServiceGds
                 volumeIndex++;
             }
 
+            var useFirstCover = false;
+
+            if (gdsInfo != null && gdsInfo.action != null && gdsInfo.action.ContainsKey("first_cover") && gdsInfo.action["first_cover"] == "true")
+            {
+                useFirstCover = true;
+            }
+            useFirstCover = false;
+            if (useFirstCover == false)
+            {
+                if (Path.Exists(Path.Join(Path.GetDirectoryName(Path.GetDirectoryName(series.FolderPath)), ".firstcover")) || Path.Exists(Path.Join(Path.GetDirectoryName(series.FolderPath), ".firstcover")) || Path.Exists(Path.Join(series.FolderPath, ".firstcover")))
+                {
+                    useFirstCover = true;
+                }
+            }
+            if (useFirstCover)
+            { 
+                var firstVolume = series.Volumes.FirstNonLooseLeafOrDefault();
+                foreach (var volume in series.Volumes)
+                {
+                    //volume.CoverImage = firstVolume.CoverImage;
+                    volume.CoverImage = series.CoverImage;
+                    foreach (var chapter in volume.Chapters)
+                    {
+                        chapter.CoverImage = series.CoverImage;
+                    }
+                }
+            }
+            
             await UpdateSeriesCoverImage(series, firstVolumeUpdated || forceUpdate);
         }
         catch (Exception ex)

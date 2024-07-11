@@ -652,6 +652,9 @@ public static class Parser
     private static readonly Regex[] GdsRegex = new[]
     {
         new Regex(
+            @"^(?<Volume>\d+)\s",
+            MatchOptions, RegexTimeout),
+        new Regex(
             @"(.*?)\s?(?<Volume>\d+)(회|화|장|권)",
             MatchOptions, RegexTimeout),
         /*

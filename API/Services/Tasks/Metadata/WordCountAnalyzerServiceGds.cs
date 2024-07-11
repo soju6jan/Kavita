@@ -197,7 +197,7 @@ public class WordCountAnalyzerServiceGds : IWordCountAnalyzerServiceGds
                         try
                         {
                             // SOJU6JAN READ POINT - 워드카운트
-                            _logger.LogError("wordCount 파일 오픈 시도 - 워드카운트 {FilePath}", file.FilePath);
+                            _logger.LogWarning("wordCount 파일 오픈 시도 - 워드카운트 {FilePath}", file.FilePath);
 
                             using var book = await EpubReader.OpenBookAsync(filePath, BookService.BookReaderOptions);
 

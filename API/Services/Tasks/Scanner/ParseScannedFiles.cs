@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Abstractions;
 using System.Linq;
 using System.Threading.Tasks;
 using API.Entities;
@@ -114,6 +115,7 @@ public class ParseScannedFiles
         _eventHub = eventHub;
     }
 
+
     /// <summary>
     /// This will Scan all files in a folder path. For each folder within the folderPath, FolderAction will be invoked for all files contained
     /// </summary>
@@ -131,6 +133,11 @@ public class ParseScannedFiles
 
         if (scanDirectoryByDirectory)
         {
+            if (library.Type == LibraryType.GDS)
+            {
+                var tmp = _directoryService.GdsScanFiles(folderPath, fileExtensions, seriesPaths, result, folderPath, forceCheck, matcher);
+                return tmp;
+            }
             var directories = _directoryService.GetDirectories(folderPath, matcher).Select(Parser.Parser.NormalizePath);
             foreach (var directory in directories)
             {
