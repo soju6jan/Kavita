@@ -3,5 +3,6 @@ export enum MangaFormat {
     ARCHIVE = 1,
     UNKNOWN = 2,
     EPUB = 3,
-    PDF = 4
+    PDF = 4,
+    TEXT = 5
 }

@@ -24,9 +24,11 @@ import {
   OnInit,
   ViewChild
 } from '@angular/core';
-import {FormControl, FormGroup, ReactiveFormsModule} from '@angular/forms';
-import {Title} from '@angular/platform-browser';
-import {ActivatedRoute, Router} from '@angular/router';
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { Title } from '@angular/platform-browser';
+import { ActivatedRoute, Router } from '@angular/router';
+import { VirtualScrollerModule } from '@iharbeck/ngx-virtual-scroller';
 import {
   NgbDropdown,
   NgbDropdownItem,
@@ -43,79 +45,77 @@ import {
   NgbProgressbar,
   NgbTooltip
 } from '@ng-bootstrap/ng-bootstrap';
-import {ToastrService} from 'ngx-toastr';
-import {catchError, forkJoin, Observable, of} from 'rxjs';
-import {map, take} from 'rxjs/operators';
-import {BulkSelectionService} from 'src/app/cards/bulk-selection.service';
-import {CardDetailDrawerComponent} from 'src/app/cards/card-detail-drawer/card-detail-drawer.component';
+import { translate, TranslocoDirective, TranslocoService } from "@ngneat/transloco";
+import { ToastrService } from 'ngx-toastr';
+import { catchError, forkJoin, Observable, of } from 'rxjs';
+import { map } from 'rxjs/operators';
+import { Chapter, LooseLeafOrDefaultNumber, SpecialVolumeNumber } from 'src/app/_models/chapter';
+import { Device } from 'src/app/_models/device/device';
+import { ScanSeriesEvent } from 'src/app/_models/events/scan-series-event';
+import { SeriesRemovedEvent } from 'src/app/_models/events/series-removed-event';
+import { LibraryType } from 'src/app/_models/library/library';
+import { SeriesMetadata } from 'src/app/_models/metadata/series-metadata';
+import { PageLayoutMode } from 'src/app/_models/page-layout-mode';
+import { ReadingList } from 'src/app/_models/reading-list';
+import { Series } from 'src/app/_models/series';
+import { RelatedSeries } from 'src/app/_models/series-detail/related-series';
+import { RelationKind } from 'src/app/_models/series-detail/relation-kind';
+import { User } from 'src/app/_models/user';
+import { Volume } from 'src/app/_models/volume';
+import { AccountService } from 'src/app/_services/account.service';
+import { Action, ActionFactoryService, ActionItem } from 'src/app/_services/action-factory.service';
+import { ActionService } from 'src/app/_services/action.service';
+import { DeviceService } from 'src/app/_services/device.service';
+import { ImageService } from 'src/app/_services/image.service';
+import { LibraryService } from 'src/app/_services/library.service';
+import { EVENTS, MessageHubService } from 'src/app/_services/message-hub.service';
+import { NavService } from 'src/app/_services/nav.service';
+import { ReaderService } from 'src/app/_services/reader.service';
+import { ReadingListService } from 'src/app/_services/reading-list.service';
+import { ScrollService } from 'src/app/_services/scroll.service';
+import { SeriesService } from 'src/app/_services/series.service';
 import {
   EditSeriesModalCloseResult,
   EditSeriesModalComponent
 } from 'src/app/cards/_modals/edit-series-modal/edit-series-modal.component';
-import {TagBadgeCursor} from 'src/app/shared/tag-badge/tag-badge.component';
-import {DownloadEvent, DownloadService} from 'src/app/shared/_services/download.service';
-import {KEY_CODES, UtilityService} from 'src/app/shared/_services/utility.service';
-import {Chapter, LooseLeafOrDefaultNumber, SpecialVolumeNumber} from 'src/app/_models/chapter';
-import {Device} from 'src/app/_models/device/device';
-import {ScanSeriesEvent} from 'src/app/_models/events/scan-series-event';
-import {SeriesRemovedEvent} from 'src/app/_models/events/series-removed-event';
-import {LibraryType} from 'src/app/_models/library/library';
-import {ReadingList} from 'src/app/_models/reading-list';
-import {Series} from 'src/app/_models/series';
-import {RelatedSeries} from 'src/app/_models/series-detail/related-series';
-import {RelationKind} from 'src/app/_models/series-detail/relation-kind';
-import {SeriesMetadata} from 'src/app/_models/metadata/series-metadata';
-import {User} from 'src/app/_models/user';
-import {Volume} from 'src/app/_models/volume';
-import {AccountService} from 'src/app/_services/account.service';
-import {Action, ActionFactoryService, ActionItem} from 'src/app/_services/action-factory.service';
-import {ActionService} from 'src/app/_services/action.service';
-import {DeviceService} from 'src/app/_services/device.service';
-import {ImageService} from 'src/app/_services/image.service';
-import {LibraryService} from 'src/app/_services/library.service';
-import {EVENTS, MessageHubService} from 'src/app/_services/message-hub.service';
-import {NavService} from 'src/app/_services/nav.service';
-import {ReaderService} from 'src/app/_services/reader.service';
-import {ReadingListService} from 'src/app/_services/reading-list.service';
-import {ScrollService} from 'src/app/_services/scroll.service';
-import {SeriesService} from 'src/app/_services/series.service';
+import { BulkSelectionService } from 'src/app/cards/bulk-selection.service';
+import { CardDetailDrawerComponent } from 'src/app/cards/card-detail-drawer/card-detail-drawer.component';
+import { DownloadEvent, DownloadService } from 'src/app/shared/_services/download.service';
+import { KEY_CODES, UtilityService } from 'src/app/shared/_services/utility.service';
+import { TagBadgeCursor } from 'src/app/shared/tag-badge/tag-badge.component';
+import { PublicationStatus } from "../../../_models/metadata/publication-status";
+import { Rating } from "../../../_models/rating";
+import { ExternalSeries } from "../../../_models/series-detail/external-series";
+import { NextExpectedChapter } from "../../../_models/series-detail/next-expected-chapter";
+import { ProviderImagePipe } from "../../../_pipes/provider-image.pipe";
+import { MetadataService } from "../../../_services/metadata.service";
+import { CardActionablesComponent } from "../../../_single-module/card-actionables/card-actionables.component";
+import { ReviewCardComponent } from '../../../_single-module/review-card/review-card.component';
+import { UserReview } from "../../../_single-module/review-card/user-review";
 import {
   ReviewSeriesModalCloseAction,
   ReviewSeriesModalCloseEvent,
   ReviewSeriesModalComponent
 } from '../../../_single-module/review-series-modal/review-series-modal.component';
-import {PageLayoutMode} from 'src/app/_models/page-layout-mode';
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {UserReview} from "../../../_single-module/review-card/user-review";
-import {LoadingComponent} from '../../../shared/loading/loading.component';
-import {ExternalListItemComponent} from '../../../cards/external-list-item/external-list-item.component';
-import {ExternalSeriesCardComponent} from '../../../cards/external-series-card/external-series-card.component';
-import {SeriesCardComponent} from '../../../cards/series-card/series-card.component';
-import {EntityTitleComponent} from '../../../cards/entity-title/entity-title.component';
-import {ListItemComponent} from '../../../cards/list-item/list-item.component';
-import {CardItemComponent} from '../../../cards/card-item/card-item.component';
-import {VirtualScrollerModule} from '@iharbeck/ngx-virtual-scroller';
-import {BulkOperationsComponent} from '../../../cards/bulk-operations/bulk-operations.component';
-import {ReviewCardComponent} from '../../../_single-module/review-card/review-card.component';
-import {CarouselReelComponent} from '../../../carousel/_components/carousel-reel/carousel-reel.component';
-import {SeriesMetadataDetailComponent} from '../series-metadata-detail/series-metadata-detail.component';
-import {ImageComponent} from '../../../shared/image/image.component';
-import {TagBadgeComponent} from '../../../shared/tag-badge/tag-badge.component';
-import {
-  SideNavCompanionBarComponent
-} from '../../../sidenav/_components/side-nav-companion-bar/side-nav-companion-bar.component';
-import {translate, TranslocoDirective, TranslocoService} from "@ngneat/transloco";
-import {CardActionablesComponent} from "../../../_single-module/card-actionables/card-actionables.component";
-import {ExternalSeries} from "../../../_models/series-detail/external-series";
 import {
   SeriesPreviewDrawerComponent
 } from "../../../_single-module/series-preview-drawer/series-preview-drawer.component";
-import {PublicationStatus} from "../../../_models/metadata/publication-status";
-import {NextExpectedChapter} from "../../../_models/series-detail/next-expected-chapter";
-import {NextExpectedCardComponent} from "../../../cards/next-expected-card/next-expected-card.component";
-import {ProviderImagePipe} from "../../../_pipes/provider-image.pipe";
-import {MetadataService} from "../../../_services/metadata.service";
-import {Rating} from "../../../_models/rating";
+import { BulkOperationsComponent } from '../../../cards/bulk-operations/bulk-operations.component';
+import { CardItemComponent } from '../../../cards/card-item/card-item.component';
+import { EntityTitleComponent } from '../../../cards/entity-title/entity-title.component';
+import { ExternalListItemComponent } from '../../../cards/external-list-item/external-list-item.component';
+import { ExternalSeriesCardComponent } from '../../../cards/external-series-card/external-series-card.component';
+import { ListItemComponent } from '../../../cards/list-item/list-item.component';
+import { NextExpectedCardComponent } from "../../../cards/next-expected-card/next-expected-card.component";
+import { SeriesCardComponent } from '../../../cards/series-card/series-card.component';
+import { CarouselReelComponent } from '../../../carousel/_components/carousel-reel/carousel-reel.component';
+import { ImageComponent } from '../../../shared/image/image.component';
+import { LoadingComponent } from '../../../shared/loading/loading.component';
+import { TagBadgeComponent } from '../../../shared/tag-badge/tag-badge.component';
+import {
+  SideNavCompanionBarComponent
+} from '../../../sidenav/_components/side-nav-companion-bar/side-nav-companion-bar.component';
+import { SeriesMetadataDetailComponent } from '../series-metadata-detail/series-metadata-detail.component';
 
 interface RelatedSeriesPair {
   series: Series;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -56,6 +56,9 @@ public interface IBookService
     void ExtractPdfImages(string fileFilePath, string targetDirectory);
     Task<ICollection<BookChapterItem>> GenerateTableOfContents(Chapter chapter);
     Task<string> GetBookPage(int page, int chapterId, string cachedEpubPath, string baseUrl);
+    Task<string>
+    GetBookPageText(int page, int chapterId, string cachedEpubPath, string baseUrl);
+
     Task<Dictionary<string, int>> CreateKeyToPageMappingAsync(EpubBookRef book);
 }
 
@@ -987,6 +990,20 @@ public class BookService : IBookService
     /// <returns></returns>
     public async Task<ICollection<BookChapterItem>> GenerateTableOfContents(Chapter chapter)
     {
+        if (chapter.Files.First().Format == MangaFormat.Text)
+        {
+            var chaptersListText = new List<BookChapterItem>();
+            chaptersListText.Add(new BookChapterItem
+            {
+                Title = chapter.Files.First().FileName,
+                Page = 1,
+                Part = "",
+                Children = new List<BookChapterItem>()
+            });
+            return chaptersListText;
+        }
+
+        
         using var book = await EpubReader.OpenBookAsync(chapter.Files.ElementAt(0).FilePath, BookReaderOptions);
         var mappings = await CreateKeyToPageMappingAsync(book);
 
@@ -1115,6 +1132,8 @@ public class BookService : IBookService
     /// <exception cref="KavitaException">All exceptions throw this</exception>
     public async Task<string> GetBookPage(int page, int chapterId, string cachedEpubPath, string baseUrl)
     {
+
+
         using var book = await EpubReader.OpenBookAsync(cachedEpubPath, BookReaderOptions);
         var mappings = await CreateKeyToPageMappingAsync(book);
         var apiBase = baseUrl + "book/" + chapterId + "/" + BookApiUrl;
@@ -1161,6 +1180,48 @@ public class BookService : IBookService
         {
             _logger.LogError(ex, "There was an issue reading one of the pages for {Book}", book.FilePath);
             await _mediaErrorService.ReportMediaIssueAsync(book.FilePath, MediaErrorProducer.BookService,
+                "There was an issue reading one of the pages for", ex);
+        }
+
+        throw new KavitaException("epub-html-missing");
+    }
+
+    public async Task<string> GetBookPageText(int page, int chapterId, string cachedEpubPath, string baseUrl)
+    {
+        try
+        {
+
+            //var lines = File.ReadAllText(cachedEpubPath);
+            //return "<pre>" + lines + "</pre>";
+
+            //var lines = File.ReadAllLines(cachedEpubPath, Encoding.UTF8);
+            //var lines = File.ReadAllLines(cachedEpubPath, Encoding.GetEncoding(949));
+            string[] lines = null;
+            if (page == 1)
+            {
+                lines = File.ReadAllLines(cachedEpubPath, Encoding.UTF8);
+            } else if (page == 2)
+            {
+                var encoding = CodePagesEncodingProvider.Instance.GetEncoding("euc-kr");
+                lines = File.ReadAllLines(cachedEpubPath, encoding);
+            }
+
+            List<string> ret = new List<string>();
+            foreach (var line in lines) {
+                ret.Add("<p>" + line + "</p>");
+            }
+            //return $"<div class=\"{body.Attributes["class"].Value}\">{body.InnerHtml}</div>";
+            return String.Join("", ret);
+            
+
+
+
+
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "TEXT file  was an issue reading one of the pages for {Book}", cachedEpubPath);
+            await _mediaErrorService.ReportMediaIssueAsync(cachedEpubPath, MediaErrorProducer.BookService,
                 "There was an issue reading one of the pages for", ex);
         }
 

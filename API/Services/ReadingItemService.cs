@@ -108,6 +108,9 @@ public class ReadingItemService : IReadingItemService
     /// <returns></returns>
     public int GetNumberOfPages(string filePath, MangaFormat format)
     {
+        if (format == MangaFormat.Image) return 1;
+        else if (format == MangaFormat.Text) return 2;
+
         try
         {
             String filename = Path.GetFileNameWithoutExtension(filePath);
@@ -139,6 +142,10 @@ public class ReadingItemService : IReadingItemService
             {
                 return 1;
             }
+            case MangaFormat.Text:
+            {
+                return 2;
+            }
             case MangaFormat.Unknown:
             default:
                 return 0;
@@ -159,6 +166,7 @@ public class ReadingItemService : IReadingItemService
             MangaFormat.Archive => _archiveService.GetCoverImage(filePath, fileName, _directoryService.CoverImageDirectory, encodeFormat, size),
             MangaFormat.Image => _imageService.GetCoverImage(filePath, fileName, _directoryService.CoverImageDirectory, encodeFormat, size),
             MangaFormat.Pdf => _bookService.GetCoverImage(filePath, fileName, _directoryService.CoverImageDirectory, encodeFormat, size),
+            MangaFormat.Text => "text.png",
             _ => string.Empty
         };
     }

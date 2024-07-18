@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 
 namespace API.Entities.Enums;
 
@@ -14,6 +14,8 @@ public enum FileTypeGroup
     [Description("Pdf")]
     Pdf = 3,
     [Description("Images")]
-    Images = 4
+    Images = 4,
+    [Description("Text")]
+    Text = 5,
 
 }

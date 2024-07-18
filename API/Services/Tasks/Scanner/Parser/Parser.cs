@@ -29,6 +29,7 @@ public static class Parser
     public const string ArchiveFileExtensions = @"\.cbz|\.zip|\.rar|\.cbr|\.tar.gz|\.7zip|\.7z|\.cb7|\.cbt";
     public const string EpubFileExtension = @"\.epub";
     public const string PdfFileExtension = @"\.pdf";
+    public const string TextFileExtension = @"\.txt";
     private const string BookFileExtensions = EpubFileExtension + "|" + PdfFileExtension;
     private const string XmlRegexExtensions = @"\.xml";
     public const string MacOsMetadataFileStartsWith = @"._";
@@ -723,6 +724,7 @@ public static class Parser
         if (IsImage(filePath)) return MangaFormat.Image;
         if (IsEpub(filePath)) return MangaFormat.Epub;
         if (IsPdf(filePath)) return MangaFormat.Pdf;
+        if (IsText(filePath)) return MangaFormat.Text;
         return MangaFormat.Unknown;
     }
 
@@ -1219,6 +1221,11 @@ public static class Parser
     public static bool IsPdf(string filePath)
     {
         return Path.GetExtension(filePath).Equals(".pdf", StringComparison.InvariantCultureIgnoreCase);
+    }
+
+    public static bool IsText(string filePath)
+    {
+        return Path.GetExtension(filePath).Equals(".txt", StringComparison.InvariantCultureIgnoreCase);
     }
 
     /// <summary>

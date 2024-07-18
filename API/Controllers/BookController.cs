@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -55,7 +55,8 @@ public class BookController : BaseApiController
                 break;
             }
             case MangaFormat.Pdf:
-            {
+            case MangaFormat.Text:
+                {
                 var mangaFile = (await _unitOfWork.ChapterRepository.GetFilesForChapterAsync(chapterId))[0];
                 if (string.IsNullOrEmpty(bookTitle))
                 {
@@ -151,12 +152,18 @@ public class BookController : BaseApiController
     {
         var chapter = await _cacheService.Ensure(chapterId);
         if (chapter == null) return BadRequest(await _localizationService.Translate(User.GetUserId(), "chapter-doesnt-exist"));
+
         var path = _cacheService.GetCachedFile(chapter);
 
         var baseUrl = "//" + Request.Host + Request.PathBase + "/api/";
 
         try
         {
+            if (chapter.Files.First().Format == MangaFormat.Text)
+            {
+                return Ok(await _bookService.GetBookPageText(page, chapterId, path, baseUrl));
+            }
+
             return Ok(await _bookService.GetBookPage(page, chapterId, path, baseUrl));
         }
         catch (KavitaException ex)

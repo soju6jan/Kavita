@@ -387,34 +387,49 @@ public class ProcessSeries : IProcessSeries
         // Update Metadata based on Chapter metadata
         if (!series.Metadata.ReleaseYearLocked)
         {
-            if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Year"]))
+            try
             {
-                series.Metadata.ReleaseYear = Int32.Parse(gdsInfo.meta["Year"]);
-            } else
-            {
-                if (!isPdf) series.Metadata.ReleaseYear = chapters.MinimumReleaseYear();
+                if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Year"]))
+                {
+                    series.Metadata.ReleaseYear = Int32.Parse(gdsInfo.meta["Year"]);
+                }
+                else
+                {
+                    if (!isPdf) series.Metadata.ReleaseYear = chapters.MinimumReleaseYear();
+                }
             }
+            catch(Exception ex) {}
         }
 
         // Set the AgeRating as highest in all the comicInfos
         if (!series.Metadata.AgeRatingLocked)
         {
-            if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Age Rating"]))
+            try
             {
-                series.Metadata.AgeRating = (AgeRating)Int32.Parse(gdsInfo.meta["Age Rating"]);
+                if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Age Rating"]))
+                {
+                    series.Metadata.AgeRating = (AgeRating)Int32.Parse(gdsInfo.meta["Age Rating"]);
+                }
+                else
+                {
+                    if (!isPdf) series.Metadata.AgeRating = chapters.Max(chapter => chapter.AgeRating);
+                }
+            }
+            catch (Exception ex) { }
+
+        }
+        try
+        {
+            if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Publication Status"]))
+            {
+                series.Metadata.PublicationStatus = (PublicationStatus)Int32.Parse(gdsInfo.meta["Publication Status"]);
             }
             else
             {
-                if (!isPdf) series.Metadata.AgeRating = chapters.Max(chapter => chapter.AgeRating);
+                if (!isPdf) DeterminePublicationStatus(series, chapters);
             }
         }
-        if (library.Type == LibraryType.GDS && gdsInfo != null && gdsInfo.meta != null && !string.IsNullOrEmpty(gdsInfo.meta["Publication Status"]))
-        {
-            series.Metadata.PublicationStatus = (PublicationStatus)Int32.Parse(gdsInfo.meta["Publication Status"]);
-        } else
-        {
-            if (!isPdf) DeterminePublicationStatus(series, chapters);
-        }
+        catch (Exception ex) { }
 
         if (!series.Metadata.SummaryLocked)
         {
@@ -900,7 +915,7 @@ public class ProcessSeries : IProcessSeries
             var maxChapter = (int) chapters.Max(c => c.MaxNumber);
 
             // Single books usually don't have a number in their Range (filename)
-            if (series.Format == MangaFormat.Epub || series.Format == MangaFormat.Pdf && chapters.Count == 1)
+            if (series.Format == MangaFormat.Epub || series.Format == MangaFormat.Pdf || series.Format == MangaFormat.Text && chapters.Count == 1)
             {
                 series.Metadata.MaxCount = 1;
             }

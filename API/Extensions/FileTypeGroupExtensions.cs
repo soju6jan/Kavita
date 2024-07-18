@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using API.Entities.Enums;
 using API.Services.Tasks.Scanner.Parser;
 
@@ -18,6 +18,8 @@ public static class FileTypeGroupExtensions
                 return Parser.PdfFileExtension;
             case FileTypeGroup.Images:
                 return Parser.ImageFileExtensions;
+            case FileTypeGroup.Text:
+                return Parser.TextFileExtension;
             default:
                 throw new ArgumentOutOfRangeException(nameof(fileTypeGroup), fileTypeGroup, null);
         }

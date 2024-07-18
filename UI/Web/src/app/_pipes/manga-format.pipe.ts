@@ -1,6 +1,6 @@
-import {Pipe, PipeTransform} from '@angular/core';
+import { Pipe, PipeTransform } from '@angular/core';
+import { TranslocoService } from "@ngneat/transloco";
 import { MangaFormat } from '../_models/manga-format';
-import {TranslocoService} from "@ngneat/transloco";
 
 /**
  * Returns the string name for the format
@@ -25,6 +25,8 @@ export class MangaFormatPipe implements PipeTransform {
         return this.translocoService.translate('manga-format-pipe.pdf');
       case MangaFormat.UNKNOWN:
         return this.translocoService.translate('manga-format-pipe.unknown');
+      case MangaFormat.TEXT:
+        return 'Text';
       default:
         return '';
     }

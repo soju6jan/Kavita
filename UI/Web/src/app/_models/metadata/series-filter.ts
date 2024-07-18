@@ -1,6 +1,5 @@
 import { MangaFormat } from "../manga-format";
 import { SeriesFilterV2 } from "./v2/series-filter-v2";
-import {FilterField} from "./v2/filter-field";
 
 export interface FilterItem<T> {
     title: string;
@@ -51,6 +50,11 @@ export const mangaFormatFilters = [
     {
       title: 'ARCHIVE',
       value: MangaFormat.ARCHIVE,
+      selected: false
+    },
+    {
+      title: 'TEXT',
+      value: MangaFormat.TEXT,
       selected: false
     }
 ];

@@ -257,12 +257,11 @@ public class MetadataServiceGds : IMetadataServiceGds
             }
 
             var useFirstCover = false;
-
+            if (series.Format == MangaFormat.Text) useFirstCover = true;
             if (gdsInfo != null && gdsInfo.action != null && gdsInfo.action.ContainsKey("first_cover") && gdsInfo.action["first_cover"] == "true")
             {
                 useFirstCover = true;
             }
-            useFirstCover = false;
             if (useFirstCover == false)
             {
                 if (Path.Exists(Path.Join(Path.GetDirectoryName(Path.GetDirectoryName(series.FolderPath)), ".firstcover")) || Path.Exists(Path.Join(Path.GetDirectoryName(series.FolderPath), ".firstcover")) || Path.Exists(Path.Join(series.FolderPath, ".firstcover")))
@@ -270,21 +269,41 @@ public class MetadataServiceGds : IMetadataServiceGds
                     useFirstCover = true;
                 }
             }
-            if (useFirstCover)
-            { 
-                var firstVolume = series.Volumes.FirstNonLooseLeafOrDefault();
-                foreach (var volume in series.Volumes)
-                {
-                    //volume.CoverImage = firstVolume.CoverImage;
-                    volume.CoverImage = series.CoverImage;
-                    foreach (var chapter in volume.Chapters)
-                    {
-                        chapter.CoverImage = series.CoverImage;
-                    }
-                }
-            }
             
             await UpdateSeriesCoverImage(series, firstVolumeUpdated || forceUpdate);
+
+            if (useFirstCover)
+            {
+                var coverImage = series.CoverImage;
+                if ( coverImage == null) 
+                {
+                    foreach (var volume in series.Volumes)
+                    {
+                        foreach (var chapter in volume.Chapters)
+                        {
+                            if (chapter.CoverImage != null)
+                            {
+                                coverImage = chapter.CoverImage;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (coverImage != null)
+                {
+                    //var firstVolume = series.Volumes.FirstNonLooseLeafOrDefault();
+                    foreach (var volume in series.Volumes)
+                    {
+                        //volume.CoverImage = firstVolume.CoverImage;
+                        volume.CoverImage = coverImage;
+                        foreach (var chapter in volume.Chapters)
+                        {
+                            chapter.CoverImage = coverImage;
+                        }
+                    }
+                    series.CoverImage = coverImage;
+                }
+            }
         }
         catch (Exception ex)
         {

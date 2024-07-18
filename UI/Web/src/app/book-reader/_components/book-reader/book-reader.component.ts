@@ -1,3 +1,5 @@
+import { animate, state, style, transition, trigger } from '@angular/animations';
+import { DOCUMENT, NgClass, NgIf, NgStyle, NgTemplateOutlet } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -13,45 +15,43 @@ import {
   RendererStyleFlags2,
   ViewChild
 } from '@angular/core';
-import { DOCUMENT, NgTemplateOutlet, NgIf, NgStyle, NgClass } from '@angular/common';
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
+import { NgbNav, NgbNavContent, NgbNavItem, NgbNavItemRole, NgbNavLink, NgbNavOutlet, NgbProgressbar, NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
+import { translate, TranslocoDirective } from "@ngneat/transloco";
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin, fromEvent, of } from 'rxjs';
-import {catchError, debounceTime, distinctUntilChanged, map, take, tap} from 'rxjs/operators';
+import { catchError, debounceTime, distinctUntilChanged, take, tap } from 'rxjs/operators';
 import { Chapter } from 'src/app/_models/chapter';
+import { LibraryType } from 'src/app/_models/library/library';
+import { MangaFormat } from 'src/app/_models/manga-format';
+import { BookTheme } from 'src/app/_models/preferences/book-theme';
+import { ReadingDirection } from 'src/app/_models/preferences/reading-direction';
+import { BookPageLayoutMode } from 'src/app/_models/readers/book-page-layout-mode';
+import { User } from 'src/app/_models/user';
 import { AccountService } from 'src/app/_services/account.service';
+import { LibraryService } from 'src/app/_services/library.service';
+import { MemberService } from 'src/app/_services/member.service';
 import { NavService } from 'src/app/_services/nav.service';
 import { CHAPTER_ID_DOESNT_EXIST, CHAPTER_ID_NOT_FETCHED, ReaderService } from 'src/app/_services/reader.service';
-import { SeriesService } from 'src/app/_services/series.service';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { BookService } from '../../_services/book.service';
-import { KEY_CODES, UtilityService } from 'src/app/shared/_services/utility.service';
-import { BookChapterItem } from '../../_models/book-chapter-item';
-import { animate, state, style, transition, trigger } from '@angular/animations';
-import { Stack } from 'src/app/shared/data-structures/stack';
-import { MemberService } from 'src/app/_services/member.service';
-import { ReadingDirection } from 'src/app/_models/preferences/reading-direction';
-import {WritingStyle} from "../../../_models/preferences/writing-style";
-import { MangaFormat } from 'src/app/_models/manga-format';
-import { LibraryService } from 'src/app/_services/library.service';
-import { LibraryType } from 'src/app/_models/library/library';
-import { BookTheme } from 'src/app/_models/preferences/book-theme';
-import { BookPageLayoutMode } from 'src/app/_models/readers/book-page-layout-mode';
-import { PageStyle, ReaderSettingsComponent } from '../reader-settings/reader-settings.component';
-import { User } from 'src/app/_models/user';
-import { ThemeService } from 'src/app/_services/theme.service';
 import { ScrollService } from 'src/app/_services/scroll.service';
+import { SeriesService } from 'src/app/_services/series.service';
+import { ThemeService } from 'src/app/_services/theme.service';
 import { PAGING_DIRECTION } from 'src/app/manga-reader/_models/reader-enums';
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import { TableOfContentsComponent } from '../table-of-contents/table-of-contents.component';
-import { NgbProgressbar, NgbNav, NgbNavItem, NgbNavItemRole, NgbNavLink, NgbNavContent, NgbNavOutlet, NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
+import { KEY_CODES, UtilityService } from 'src/app/shared/_services/utility.service';
+import { Stack } from 'src/app/shared/data-structures/stack';
+import { WritingStyle } from "../../../_models/preferences/writing-style";
 import { DrawerComponent } from '../../../shared/drawer/drawer.component';
-import {BookLineOverlayComponent} from "../book-line-overlay/book-line-overlay.component";
+import { BookChapterItem } from '../../_models/book-chapter-item';
+import { BookService } from '../../_services/book.service';
+import { BookLineOverlayComponent } from "../book-line-overlay/book-line-overlay.component";
 import {
   PersonalTableOfContentsComponent,
   PersonalToCEvent
 } from "../personal-table-of-contents/personal-table-of-contents.component";
-import {translate, TranslocoDirective} from "@ngneat/transloco";
+import { PageStyle, ReaderSettingsComponent } from '../reader-settings/reader-settings.component';
+import { TableOfContentsComponent } from '../table-of-contents/table-of-contents.component';
 
 
 enum TabID {

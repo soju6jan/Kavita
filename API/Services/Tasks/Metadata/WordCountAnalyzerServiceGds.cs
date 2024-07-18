@@ -186,7 +186,7 @@ public class WordCountAnalyzerServiceGds : IWordCountAnalyzerServiceGds
                     }
                 }
 
-                if (flagGdsInfo==false && series.Format == MangaFormat.Epub)
+                if (flagGdsInfo == false && series.Format == MangaFormat.Epub)
                 {
                     long sum = 0;
                     var fileCounter = 1;
@@ -228,6 +228,30 @@ public class WordCountAnalyzerServiceGds : IWordCountAnalyzerServiceGds
                         UpdateFileAnalysis(file);
                     }
 
+                    chapter.WordCount = sum;
+                    series.WordCount += sum;
+                    volume.WordCount += sum;
+                }
+                else if (flagGdsInfo == false && series.Format == MangaFormat.Text)
+                {
+                    /*
+                    try
+                    {
+                        var sum = 0;
+                        foreach (var file in chapter.Files)
+                        {
+                            var filePath = file.FilePath;
+                            var all = File.ReadAllText(filePath);
+                            sum += all.Length;
+                        }
+                        chapter.WordCount = sum;
+                        series.WordCount += sum;
+                        volume.WordCount += sum;
+                    }
+                    catch (Exception ex)
+                    { }
+                    */
+                    var sum = 10000;
                     chapter.WordCount = sum;
                     series.WordCount += sum;
                     volume.WordCount += sum;
