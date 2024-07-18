@@ -1197,10 +1197,10 @@ public class BookService : IBookService
             //var lines = File.ReadAllLines(cachedEpubPath, Encoding.UTF8);
             //var lines = File.ReadAllLines(cachedEpubPath, Encoding.GetEncoding(949));
             string[] lines = null;
-            if (page == 1)
+            if (page == 0)
             {
                 lines = File.ReadAllLines(cachedEpubPath, Encoding.UTF8);
-            } else if (page == 2)
+            } else if (page == 1)
             {
                 var encoding = CodePagesEncodingProvider.Instance.GetEncoding("euc-kr");
                 lines = File.ReadAllLines(cachedEpubPath, encoding);
