@@ -1,6 +1,6 @@
-import {inject, Pipe, PipeTransform} from '@angular/core';
+import { inject, Pipe, PipeTransform } from '@angular/core';
+import { TranslocoService } from "@ngneat/transloco";
 import { LibraryType } from '../_models/library/library';
-import {TranslocoService} from "@ngneat/transloco";
 
 /**
  * Returns the name of the LibraryType
@@ -26,6 +26,8 @@ export class LibraryTypePipe implements PipeTransform {
         return this.translocoService.translate('library-type-pipe.manga');
       case LibraryType.LightNovel:
         return this.translocoService.translate('library-type-pipe.lightNovel');
+      case LibraryType.Gds:
+        return this.translocoService.translate('library-type-pipe.gds');
       default:
         return '';
     }

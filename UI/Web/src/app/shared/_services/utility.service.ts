@@ -1,12 +1,12 @@
 import { HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { TranslocoService } from "@ngneat/transloco";
 import { Chapter } from 'src/app/_models/chapter';
 import { LibraryType } from 'src/app/_models/library/library';
 import { MangaFormat } from 'src/app/_models/manga-format';
 import { PaginatedResult } from 'src/app/_models/pagination';
 import { Series } from 'src/app/_models/series';
 import { Volume } from 'src/app/_models/volume';
-import {TranslocoService} from "@ngneat/transloco";
 
 export enum KEY_CODES {
   RIGHT_ARROW = 'ArrowRight',
@@ -75,6 +75,8 @@ export class UtilityService {
       case LibraryType.Images:
       case LibraryType.Manga:
         return this.translocoService.translate('common.chapter-num') + (includeSpace ? ' ' : '');
+      case LibraryType.Gds:
+          return this.translocoService.translate('common.volume-num') + (includeSpace ? ' ' : '');
     }
   }
 

@@ -18,6 +18,9 @@ using API.Services.Tasks.Scanner.Parser;
 using API.SignalR;
 using Hangfire;
 using Microsoft.Extensions.Logging;
+using YamlDotNet.Serialization;
+using YamlDotNet.Serialization.NamingConventions;
+using System.Text;
 
 namespace API.Services.Tasks;
 #nullable enable
@@ -80,27 +83,31 @@ public class ScannerService : IScannerService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<ScannerService> _logger;
     private readonly IMetadataService _metadataService;
+    private readonly IMetadataServiceGds _metadataServiceGds;
     private readonly ICacheService _cacheService;
     private readonly IEventHub _eventHub;
     private readonly IDirectoryService _directoryService;
     private readonly IReadingItemService _readingItemService;
     private readonly IProcessSeries _processSeries;
     private readonly IWordCountAnalyzerService _wordCountAnalyzerService;
+    private readonly IWordCountAnalyzerServiceGds _wordCountAnalyzerServiceGds;
 
     public ScannerService(IUnitOfWork unitOfWork, ILogger<ScannerService> logger,
-        IMetadataService metadataService, ICacheService cacheService, IEventHub eventHub,
+        IMetadataService metadataService, IMetadataServiceGds metadataServiceGds, ICacheService cacheService, IEventHub eventHub,
         IDirectoryService directoryService, IReadingItemService readingItemService,
-        IProcessSeries processSeries, IWordCountAnalyzerService wordCountAnalyzerService)
+        IProcessSeries processSeries, IWordCountAnalyzerService wordCountAnalyzerService, IWordCountAnalyzerServiceGds wordCountAnalyzerServiceGds)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
         _metadataService = metadataService;
+        _metadataServiceGds = metadataServiceGds;
         _cacheService = cacheService;
         _eventHub = eventHub;
         _directoryService = directoryService;
         _readingItemService = readingItemService;
         _processSeries = processSeries;
         _wordCountAnalyzerService = wordCountAnalyzerService;
+        _wordCountAnalyzerServiceGds = wordCountAnalyzerServiceGds;
     }
 
     /// <summary>
@@ -213,6 +220,18 @@ public class ScannerService : IScannerService
         var series = await _unitOfWork.SeriesRepository.GetFullSeriesForSeriesIdAsync(seriesId);
         if (series == null) return; // This can occur when UI deletes a series but doesn't update and user re-requests update
 
+        var gdsInfo = (GdsInfo)null;
+        if (series.Library.Type == LibraryType.GDS)
+        {
+            //gdsInfo = GdsUtil.getGdsInfoBySeries(series);
+            var firstChapter = SeriesService.GetFirstChapterForMetadata(series);
+            var firstFile = firstChapter?.Files.FirstOrDefault();
+            gdsInfo = GdsUtil.getGdsInfoByFile(firstFile.FilePath);
+            if (gdsInfo == null)
+            {
+                _logger.LogDebug("[ScannerService] 에러 {SeriesFolderPath}", series.FolderPath);
+            }
+        }
         var existingChapterIdsToClean = await _unitOfWork.SeriesRepository.GetChapterIdsForSeriesAsync(new[] {seriesId});
 
         var library = await _unitOfWork.LibraryRepository.GetLibraryForIdAsync(series.LibraryId, LibraryIncludes.Folders | LibraryIncludes.FileTypes | LibraryIncludes.ExcludePatterns);
@@ -221,9 +240,16 @@ public class ScannerService : IScannerService
         var libraryPaths = library.Folders.Select(f => f.Path).ToList();
         if (await ShouldScanSeries(seriesId, library, libraryPaths, series, true) != ScanCancelReason.NoCancel)
         {
-            BackgroundJob.Enqueue(() => _metadataService.GenerateCoversForSeries(series.LibraryId, seriesId, false));
-            BackgroundJob.Enqueue(() => _wordCountAnalyzerService.ScanSeries(library.Id, seriesId, bypassFolderOptimizationChecks));
-            return;
+            if (library.Type != LibraryType.GDS)
+            {
+                BackgroundJob.Enqueue(() => _metadataService.GenerateCoversForSeries(series.LibraryId, seriesId, false));
+                BackgroundJob.Enqueue(() => _wordCountAnalyzerService.ScanSeries(library.Id, seriesId, bypassFolderOptimizationChecks));
+                return;
+            } else {
+                BackgroundJob.Enqueue(() => _metadataServiceGds.GenerateCoversForSeries(series.LibraryId, seriesId, false, gdsInfo));
+                BackgroundJob.Enqueue(() => _wordCountAnalyzerServiceGds.ScanSeries(library.Id, seriesId, bypassFolderOptimizationChecks, gdsInfo));
+                return;
+            }
         }
 
         var folderPath = series.LowestFolderPath ?? series.FolderPath;
@@ -329,7 +355,7 @@ public class ScannerService : IScannerService
         foreach (var pSeries in toProcess)
         {
             // Process Series
-            await _processSeries.ProcessSeriesAsync(parsedSeries[pSeries], library, seriesLeftToProcess, bypassFolderOptimizationChecks);
+            await _processSeries.ProcessSeriesAsync(parsedSeries[pSeries], library, seriesLeftToProcess, bypassFolderOptimizationChecks, gdsInfo);
             seriesLeftToProcess--;
         }
 
@@ -341,7 +367,13 @@ public class ScannerService : IScannerService
         await _eventHub.SendMessageAsync(MessageFactory.ScanSeries,
             MessageFactory.ScanSeriesEvent(library.Id, seriesId, series.Name));
 
-        await _metadataService.RemoveAbandonedMetadataKeys();
+        if (library.Type != LibraryType.GDS)
+        {
+            await _metadataService.RemoveAbandonedMetadataKeys();
+        } else
+        {
+            await _metadataServiceGds.RemoveAbandonedMetadataKeys();
+        }
 
         BackgroundJob.Enqueue(() => _cacheService.CleanupChapters(existingChapterIdsToClean));
         BackgroundJob.Enqueue(() => _directoryService.ClearDirectory(_directoryService.CacheDirectory));
@@ -578,7 +610,14 @@ public class ScannerService : IScannerService
 
         await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress,
             MessageFactory.LibraryScanProgressEvent(library.Name, ProgressEventType.Ended, string.Empty));
-        await _metadataService.RemoveAbandonedMetadataKeys();
+        if (library.Type != LibraryType.GDS)
+        {
+            await _metadataService.RemoveAbandonedMetadataKeys();
+        }
+        else
+        {
+            await _metadataServiceGds.RemoveAbandonedMetadataKeys();
+        }        
 
         BackgroundJob.Enqueue(() => _directoryService.ClearDirectory(_directoryService.CacheDirectory));
     }
@@ -624,12 +663,20 @@ public class ScannerService : IScannerService
         var totalFiles = 0;
         //var tasks = new List<Task>();
         var seriesLeftToProcess = toProcess.Count;
+        GdsInfo gdsInfo = null;
         foreach (var pSeries in toProcess)
         {
             totalFiles += parsedSeries[pSeries].Count;
             //tasks.Add(_processSeries.ProcessSeriesAsync(parsedSeries[pSeries], library, forceUpdate));
             // We can't do Task.WhenAll because of concurrency issues.
-            await _processSeries.ProcessSeriesAsync(parsedSeries[pSeries], library, seriesLeftToProcess, forceUpdate);
+            if (library.Type == LibraryType.GDS && gdsInfo == null)
+            {
+                gdsInfo = GdsUtil.getGdsInfoByFile(parsedSeries[pSeries][0].FullFilePath);
+                await _processSeries.ProcessSeriesAsync(parsedSeries[pSeries], library, seriesLeftToProcess, forceUpdate, gdsInfo);
+            } else
+            {
+                await _processSeries.ProcessSeriesAsync(parsedSeries[pSeries], library, seriesLeftToProcess, forceUpdate);
+            }        
             seriesLeftToProcess--;
         }
 

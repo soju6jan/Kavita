@@ -216,6 +216,8 @@ export class SideNavComponent implements OnInit {
         return 'fa-book-open';
       case LibraryType.Images:
         return 'fa-images';
+      case LibraryType.Gds:
+        return 'fa-book-reader';
     }
   }
 

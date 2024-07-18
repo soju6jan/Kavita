@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 
 namespace API.Entities.Enums;
 
@@ -34,5 +34,8 @@ public enum MangaFormat
     /// PDF File
     /// </summary>
     [Description("PDF")]
-    Pdf = 4
+    Pdf = 4,
+
+    [Description("Text")]
+    Text = 5
 }

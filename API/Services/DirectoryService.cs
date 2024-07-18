@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using API.DTOs.System;
 using API.Entities.Enums;
 using API.Extensions;
+using API.Services.Tasks.Scanner;
 using API.Services.Tasks.Scanner.Parser;
 using Kavita.Common.Helpers;
 using Microsoft.Extensions.Logging;
@@ -70,6 +71,7 @@ public interface IDirectoryService
     IEnumerable<string> GetDirectories(string folderPath, GlobMatcher? matcher);
     string GetParentDirectoryName(string fileOrFolder);
     IList<string> ScanFiles(string folderPath, string fileTypes, GlobMatcher? matcher = null);
+    IList<ScanResult> GdsScanFiles(string folderPath, string fileTypes, IDictionary<string, IList<SeriesModified>> seriesPaths, List<ScanResult> result, string libraryRoot, bool forceCheck, GlobMatcher? matcher = null);
     DateTime GetLastWriteTime(string folderPath);
     GlobMatcher? CreateMatcherFromFile(string filePath);
 }
@@ -740,6 +742,74 @@ public class DirectoryService : IDirectoryService
         }
 
         return files;
+    }
+
+    public static string NormalizePath(string? path)
+    {
+        return string.IsNullOrEmpty(path) ? string.Empty : path.Replace('\\', Path.AltDirectorySeparatorChar)
+            .Replace(@"//", Path.AltDirectorySeparatorChar + string.Empty);
+    }
+    private static ScanResult CreateScanResult(string folderPath, string libraryRoot, bool hasChanged,
+    IList<string> files)
+    {
+        return new ScanResult()
+        {
+            Files = files,
+            Folder = NormalizePath(folderPath),
+            LibraryRoot = libraryRoot,
+            HasChanged = hasChanged
+        };
+    }
+
+    public IList<ScanResult> GdsScanFiles(string folderPath, string fileTypes, IDictionary<string, IList<SeriesModified>> seriesPaths, List<ScanResult> result, string libraryRoot, bool forceCheck, GlobMatcher? matcher = null)
+    {
+        _logger.LogWarning("[GdsScanFiles] called on {Path}", folderPath);
+        var files = new List<string>();
+        if (!Exists(folderPath)) return result;
+
+        var potentialIgnoreFile = FileSystem.Path.Join(folderPath, KavitaIgnoreFile);
+        if (matcher == null)
+        {
+            matcher = CreateMatcherFromFile(potentialIgnoreFile);
+        }
+        else
+        {
+            matcher.Merge(CreateMatcherFromFile(potentialIgnoreFile));
+        }
+
+        var directories = GetDirectories(folderPath, matcher);
+
+        foreach (var directory in directories)
+        {
+            if (forceCheck == false && seriesPaths.ContainsKey(NormalizePath(directory)))
+            {
+                var seriesModified = seriesPaths[NormalizePath(directory)];
+                var folderInfo = new FileInfo(directory);
+                if (folderInfo.LastWriteTime < seriesModified[0].LastScanned)
+                {
+                    result.Add(CreateScanResult(directory, libraryRoot, false, ArraySegment<string>.Empty));
+                    continue;
+                }
+            }
+            GdsScanFiles(directory, fileTypes, seriesPaths, result, libraryRoot, forceCheck, matcher);
+        }
+
+        // Get the matcher from either ignore or global (default setup)
+        if (matcher == null)
+        {
+            files.AddRange(GetFilesWithCertainExtensions(folderPath, fileTypes));
+        }
+        else
+        {
+            var foundFiles = GetFilesWithCertainExtensions(folderPath,
+                    fileTypes)
+                .Where(file => !matcher.ExcludeMatches(FileSystem.FileInfo.New(file).Name));
+            files.AddRange(foundFiles);
+        }
+        if (files.Count >0)
+            result.Add(CreateScanResult(folderPath, libraryRoot, true, files));
+
+        return result;
     }
 
     /// <summary>

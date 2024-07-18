@@ -12,9 +12,6 @@
     <LangVersion>latestmajor</LangVersion>
   </PropertyGroup>
 
-  <Target Name="PostBuild" AfterTargets="Build" Condition=" '$(Configuration)' == 'Debug' ">
-      <Exec Command="swagger tofile --output ../openapi.json bin/$(Configuration)/$(TargetFramework)/$(AssemblyName).dll v1" />
-  </Target>
 
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
     <DebugSymbols>false</DebugSymbols>
@@ -104,7 +101,9 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.6.2" />
     <PackageReference Include="System.IO.Abstractions" Version="21.0.22" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.6" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
     <PackageReference Include="VersOne.Epub" Version="3.3.2" />
+    <PackageReference Include="YamlDotNet" Version="15.3.0" />
   </ItemGroup>
 
   <ItemGroup>

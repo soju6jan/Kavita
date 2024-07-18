@@ -1,4 +1,4 @@
-import {FileTypeGroup} from "./file-type-group.enum";
+import { FileTypeGroup } from "./file-type-group.enum";
 
 export enum LibraryType {
     Manga = 0,
@@ -6,7 +6,8 @@ export enum LibraryType {
     Book = 2,
     Images = 3,
     LightNovel = 4,
-    ComicVine = 5
+    ComicVine = 5,
+    Gds = 6
 }
 
 export interface Library {

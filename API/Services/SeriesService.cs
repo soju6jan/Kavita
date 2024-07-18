@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -568,6 +568,7 @@ public class SeriesService : ISeriesService
             LibraryType.ComicVine => await _localizationService.Translate(userId, "issue-num", hashSpot, chapterRange),
             LibraryType.Manga => await _localizationService.Translate(userId, "chapter-num", chapterRange),
             LibraryType.Image => await _localizationService.Translate(userId, "chapter-num", chapterRange),
+            LibraryType.GDS => await _localizationService.Translate(userId, "chapter-num", chapterRange),
             _ => await _localizationService.Translate(userId, "chapter-num", ' ')
         };
 
@@ -576,6 +577,8 @@ public class SeriesService : ISeriesService
             baseChapter += " - " + chapterTitle;
         }
 
+        if (libraryType == LibraryType.GDS)
+            return chapterTitle;
 
         return baseChapter;
     }
@@ -601,6 +604,8 @@ public class SeriesService : ISeriesService
             LibraryType.Comic => await _localizationService.Translate(userId, "issue-num", hashSpot, string.Empty),
             LibraryType.ComicVine => await _localizationService.Translate(userId, "issue-num", hashSpot, string.Empty),
             LibraryType.Manga => await _localizationService.Translate(userId, "chapter-num", string.Empty),
+
+            LibraryType.GDS => await _localizationService.Translate(userId, "chapter-num", string.Empty),
             _ => await _localizationService.Translate(userId, "chapter-num", ' ')
         }).Trim();
     }
@@ -792,4 +797,6 @@ public class SeriesService : ISeriesService
 
         return forecast;
     }
+
+
 }

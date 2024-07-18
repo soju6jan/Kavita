@@ -1,6 +1,6 @@
 import { Pipe, PipeTransform } from '@angular/core';
-import {FileTypeGroup} from "../_models/library/file-type-group.enum";
-import {translate} from "@ngneat/transloco";
+import { translate } from "@ngneat/transloco";
+import { FileTypeGroup } from "../_models/library/file-type-group.enum";
 
 @Pipe({
   name: 'fileTypeGroup',
@@ -18,7 +18,9 @@ export class FileTypeGroupPipe implements PipeTransform {
         return translate('file-type-group-pipe.pdf');
       case FileTypeGroup.Images:
         return translate('file-type-group-pipe.image');
-
+      case FileTypeGroup.Text:
+        //return translate('file-type-group-pipe.text');
+        return "Text";
     }
   }
 

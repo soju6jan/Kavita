@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 
 namespace API.Entities.Enums;
 
@@ -34,5 +34,8 @@ public enum LibraryType
     /// </summary>
     [Description("Comic (Comic Vine)")]
     ComicVine = 5,
+
+    [Description("GDS")]
+    GDS = 6,
 
 }
