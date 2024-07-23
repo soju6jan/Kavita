@@ -94,7 +94,11 @@ public class MetadataServiceGds : IMetadataServiceGds
                 if (gdsFile.cover == "FIRST")
                 {
                     flagFirst = true;
-                } else
+                } else if (gdsFile.cover == "TEXT")
+                {
+                    chapter.CoverImage = "text.png";
+                }
+                else
                 {
                     var filePath = Path.Join(_directoryService.CoverImageDirectory, ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId)) + ".png";
                     flagGdsInfo = GdsUtil.saveCover(filePath, gdsFile.cover);

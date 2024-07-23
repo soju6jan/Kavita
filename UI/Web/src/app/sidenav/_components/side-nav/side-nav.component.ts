@@ -1,3 +1,4 @@
+import { CommonModule } from "@angular/common";
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -6,34 +7,33 @@ import {
   inject,
   OnInit
 } from '@angular/core';
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { FormsModule } from "@angular/forms";
 import { NavigationEnd, Router } from '@angular/router';
-import {NgbModal, NgbTooltip} from '@ng-bootstrap/ng-bootstrap';
-import {distinctUntilChanged, filter, map, take, tap} from 'rxjs/operators';
-import { ImportCblModalComponent } from 'src/app/reading-list/_modals/import-cbl-modal/import-cbl-modal.component';
+import { NgbModal, NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
+import { TranslocoDirective } from "@ngneat/transloco";
+import { BehaviorSubject, merge, Observable, of, ReplaySubject, startWith, switchMap } from "rxjs";
+import { distinctUntilChanged, filter, map, take, tap } from 'rxjs/operators';
 import { ImageService } from 'src/app/_services/image.service';
 import { EVENTS, MessageHubService } from 'src/app/_services/message-hub.service';
-import { Breakpoint, UtilityService } from '../../../shared/_services/utility.service';
+import { ImportCblModalComponent } from 'src/app/reading-list/_modals/import-cbl-modal/import-cbl-modal.component';
 import { Library, LibraryType } from '../../../_models/library/library';
+import { SideNavStream } from "../../../_models/sidenav/sidenav-stream";
+import { SideNavStreamType } from "../../../_models/sidenav/sidenav-stream-type.enum";
+import { WikiLink } from "../../../_models/wiki";
+import { FilterPipe } from "../../../_pipes/filter.pipe";
+import { SentenceCasePipe } from "../../../_pipes/sentence-case.pipe";
 import { AccountService } from '../../../_services/account.service';
 import { Action, ActionFactoryService, ActionItem } from '../../../_services/action-factory.service';
 import { ActionService } from '../../../_services/action.service';
 import { NavService } from '../../../_services/nav.service';
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {BehaviorSubject, merge, Observable, of, ReplaySubject, startWith, switchMap} from "rxjs";
-import {CommonModule} from "@angular/common";
-import {SideNavItemComponent} from "../side-nav-item/side-nav-item.component";
-import {FilterPipe} from "../../../_pipes/filter.pipe";
-import {FormsModule} from "@angular/forms";
-import {TranslocoDirective} from "@ngneat/transloco";
-import {CardActionablesComponent} from "../../../_single-module/card-actionables/card-actionables.component";
-import {SentenceCasePipe} from "../../../_pipes/sentence-case.pipe";
-import {CustomizeDashboardModalComponent} from "../customize-dashboard-modal/customize-dashboard-modal.component";
-import {SideNavStream} from "../../../_models/sidenav/sidenav-stream";
-import {SideNavStreamType} from "../../../_models/sidenav/sidenav-stream-type.enum";
+import { CardActionablesComponent } from "../../../_single-module/card-actionables/card-actionables.component";
 import {
   ImportMalCollectionModalComponent
 } from "../../../collections/_components/import-mal-collection-modal/import-mal-collection-modal.component";
-import {WikiLink} from "../../../_models/wiki";
+import { Breakpoint, UtilityService } from '../../../shared/_services/utility.service';
+import { CustomizeDashboardModalComponent } from "../customize-dashboard-modal/customize-dashboard-modal.component";
+import { SideNavItemComponent } from "../side-nav-item/side-nav-item.component";
 
 @Component({
   selector: 'app-side-nav',
@@ -74,7 +74,7 @@ export class SideNavComponent implements OnInit {
   showAll: boolean = false;
   totalSize = 0;
 
-  private showAllSubject = new BehaviorSubject<boolean>(false);
+  private showAllSubject = new BehaviorSubject<boolean>(true);
   showAll$ = this.showAllSubject.asObservable();
 
   private loadDataSubject = new ReplaySubject<void>();

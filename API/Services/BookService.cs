@@ -1190,12 +1190,6 @@ public class BookService : IBookService
     {
         try
         {
-
-            //var lines = File.ReadAllText(cachedEpubPath);
-            //return "<pre>" + lines + "</pre>";
-
-            //var lines = File.ReadAllLines(cachedEpubPath, Encoding.UTF8);
-            //var lines = File.ReadAllLines(cachedEpubPath, Encoding.GetEncoding(949));
             string[] lines = null;
             if (page == 0)
             {
@@ -1205,18 +1199,31 @@ public class BookService : IBookService
                 var encoding = CodePagesEncodingProvider.Instance.GetEncoding("euc-kr");
                 lines = File.ReadAllLines(cachedEpubPath, encoding);
             }
-
             List<string> ret = new List<string>();
             foreach (var line in lines) {
-                ret.Add("<p>" + line + "</p>");
+                if (string.IsNullOrEmpty(line))
+                {
+                    ret.Add("<p>&nbsp;</p>");
+                } else
+                {
+                    if (line.StartsWith(" "))
+                    {
+                        string tmp = "";
+                        foreach (var c in line)
+                        {
+                            if (c == ' ') tmp = tmp + "&nbsp;";
+                            else break;
+                        }
+                        ret.Add("<p>"+ tmp + line.Trim() + "</p>");
+                    } else
+                    {
+                        ret.Add("<p>" + line + "</p>");
+                    }
+                    
+                }
+                
             }
-            //return $"<div class=\"{body.Attributes["class"].Value}\">{body.InnerHtml}</div>";
             return String.Join("", ret);
-            
-
-
-
-
         }
         catch (Exception ex)
         {
@@ -1224,7 +1231,6 @@ public class BookService : IBookService
             await _mediaErrorService.ReportMediaIssueAsync(cachedEpubPath, MediaErrorProducer.BookService,
                 "There was an issue reading one of the pages for", ex);
         }
-
         throw new KavitaException("epub-html-missing");
     }
 

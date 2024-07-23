@@ -787,8 +787,17 @@ public class DirectoryService : IDirectoryService
                 var folderInfo = new FileInfo(directory);
                 if (folderInfo.LastWriteTime < seriesModified[0].LastScanned)
                 {
+                    /*
+                    // 2024.07.22 구글 rclone 마운트는 폴더 mtime 이 변경되지 않는다.
+                    var hasFolderChangedSinceLastScan = seriesModified[0].LastScanned.Truncate(TimeSpan.TicksPerSecond) < GetLastWriteTime(seriesModified[0].LowestFolderPath!).Truncate(TimeSpan.TicksPerSecond);
+                    if (hasFolderChangedSinceLastScan == false)
+                    {
+                        result.Add(CreateScanResult(directory, libraryRoot, false, ArraySegment<string>.Empty));
+                        continue;
+                    }*/
                     result.Add(CreateScanResult(directory, libraryRoot, false, ArraySegment<string>.Empty));
                     continue;
+
                 }
             }
             GdsScanFiles(directory, fileTypes, seriesPaths, result, libraryRoot, forceCheck, matcher);
@@ -811,6 +820,7 @@ public class DirectoryService : IDirectoryService
 
         return result;
     }
+
 
     /// <summary>
     /// Recursively scans a folder and returns the max last write time on any folders and files
