@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text.Json;
 using Kavita.Common.EnvironmentInfo;
@@ -14,6 +14,7 @@ public static class Configuration
     public const int DefaultHttpPort = 5000;
     public const int DefaultTimeOutSecs = 90;
     public const long DefaultCacheMemory = 75;
+    public const int DefaultTextLinesPerPage = 1000;
     private static readonly string AppSettingsFilename = Path.Join("config", GetAppSettingFilename());
 
     public static string KavitaPlusApiUrl = "https://plus.kavitareader.com";
@@ -49,6 +50,11 @@ public static class Configuration
     }
 
     public static bool AllowIFraming => GetAllowIFraming(GetAppSettingFilename());
+    public static int TextLinesPerPage
+    {
+        get => GetTextLinesPerPage(GetAppSettingFilename());
+        set => SetTextLinesPerPage(GetAppSettingFilename(), value);
+    }
 
     private static string GetAppSettingFilename()
     {
@@ -310,6 +316,54 @@ public static class Configuration
     }
     #endregion
 
+
+    #region TextLinesPerPage
+
+    private static void SetTextLinesPerPage(string filePath, int TextLinesPerPage)
+    {
+        if (OsInfo.IsDocker)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(filePath);
+            var jsonObj = JsonSerializer.Deserialize<AppSettings>(json);
+            jsonObj.TextLinesPerPage = TextLinesPerPage;
+            json = JsonSerializer.Serialize(jsonObj, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(filePath, json);
+        }
+        catch (Exception)
+        {
+            /* Swallow Exception */
+        }
+    }
+
+    private static int GetTextLinesPerPage(string filePath)
+    {
+        if (OsInfo.IsDocker)
+        {
+            return DefaultTextLinesPerPage;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(filePath);
+            var jsonObj = JsonSerializer.Deserialize<AppSettings>(json);
+            return jsonObj.TextLinesPerPage;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error writing app settings: " + ex.Message);
+        }
+
+        return DefaultTextLinesPerPage;
+    }
+
+    #endregion
+
+
     private sealed class AppSettings
     {
         public string TokenKey { get; set; }
@@ -323,5 +377,7 @@ public static class Configuration
         public long Cache { get; set; } = DefaultCacheMemory;
         // ReSharper disable once MemberHidesStaticFromOuterClass
         public bool AllowIFraming { get; set; } = false;
+
+        public int TextLinesPerPage { get; set; } = DefaultTextLinesPerPage;
     }
 }

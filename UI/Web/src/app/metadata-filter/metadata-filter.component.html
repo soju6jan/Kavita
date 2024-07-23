@@ -76,8 +76,9 @@
   <ng-template #buttons>
     <!-- TODO: I might want to put a Clear button which blanks out the whole filter -->
     <div class="col-md-6 col-sm-6 mt-4 pt-2 d-flex justify-content-between">
-      <button class="btn btn-secondary col-6 me-1" (click)="clear()"><i class="fa-solid fa-arrow-rotate-left me-1" aria-hidden="true"></i>{{t('reset')}}</button>
-      <button class="btn btn-primary col-6" (click)="apply()"><i class="fa-solid fa-play me-1" aria-hidden="true"></i>{{t('apply')}}</button>
+      <button class="btn btn-secondary col-5 me-1" (click)="clear()"><i class="fa-solid fa-arrow-rotate-left me-1" aria-hidden="true"></i>{{t('reset')}}</button>
+      <button class="btn btn-primary col-5" (click)="apply()"><i class="fa-solid fa-play me-1" aria-hidden="true"></i>{{t('apply')}}</button>
+      <button class="btn btn-primary col-2" (click)="sortSave()"><i class="fa-solid me-1" aria-hidden="true"></i>SortSave</button>
     </div>
     <div class="col-md-2 col-sm-6 mt-4 pt-2">
       <button class="btn btn-primary col-12" (click)="save()" [disabled]="filterSettings.saveDisabled || !this.sortGroup.get('name')?.value">

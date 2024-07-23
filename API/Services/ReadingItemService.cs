@@ -109,7 +109,7 @@ public class ReadingItemService : IReadingItemService
     public int GetNumberOfPages(string filePath, MangaFormat format)
     {
         if (format == MangaFormat.Image) return 1;
-        else if (format == MangaFormat.Text) return 2;
+        //else if (format == MangaFormat.Text) return 2;
 
         try
         {
@@ -144,7 +144,7 @@ public class ReadingItemService : IReadingItemService
             }
             case MangaFormat.Text:
             {
-                return 2;
+                return _bookService.GetNumberOfPagesText(filePath);
             }
             case MangaFormat.Unknown:
             default:

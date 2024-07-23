@@ -17,13 +17,11 @@ using API.Services.Plus;
 using API.Services.Tasks.Metadata;
 using API.Services.Tasks.Scanner.Parser;
 using API.SignalR;
-using Hangfire;
 using Kavita.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.IO;
-using Serilog.Debugging;
-using API.Services.Tasks.Scanner.Parser;
+
 
 namespace API.Services.Tasks.Scanner;
 #nullable enable
@@ -60,13 +58,14 @@ public class ProcessSeries : IProcessSeries
     private readonly IReadingListService _readingListService;
     private readonly IExternalMetadataService _externalMetadataService;
     private readonly ITagManagerService _tagManagerService;
+    private readonly IBookService _bookService;
 
 
     public ProcessSeries(IUnitOfWork unitOfWork, ILogger<ProcessSeries> logger, IEventHub eventHub,
         IDirectoryService directoryService, ICacheHelper cacheHelper, IReadingItemService readingItemService,
         IFileService fileService, IMetadataService metadataService, IMetadataServiceGds metadataServiceGds, IWordCountAnalyzerService wordCountAnalyzerService, IWordCountAnalyzerServiceGds wordCountAnalyzerServiceGds,
         ICollectionTagService collectionTagService, IReadingListService readingListService,
-        IExternalMetadataService externalMetadataService, ITagManagerService tagManagerService)
+        IExternalMetadataService externalMetadataService, ITagManagerService tagManagerService, IBookService bookService)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -83,6 +82,7 @@ public class ProcessSeries : IProcessSeries
         _readingListService = readingListService;
         _externalMetadataService = externalMetadataService;
         _tagManagerService = tagManagerService;
+        _bookService = bookService;
     }
 
     /// <summary>
@@ -1136,7 +1136,15 @@ public class ProcessSeries : IProcessSeries
                 var gdsFile = GdsUtil.GetGdsFile(gdsInfo, key);
                 if (gdsFile != null)
                 {
-                    existingFile.Pages = gdsFile.page;
+                    if (Parser.Parser.IsText(key))
+                    {
+                        int pages = gdsFile.page / _bookService.GetTextLinesPerPage();
+                        if (gdsFile.page % _bookService.GetTextLinesPerPage() > 0) pages += 1;
+                        existingFile.Pages = pages;
+                    } else
+                    {
+                        existingFile.Pages = gdsFile.page;
+                    }
                     flagPage = true;
                 }
             }

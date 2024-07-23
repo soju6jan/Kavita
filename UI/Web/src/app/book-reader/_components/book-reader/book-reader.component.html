@@ -152,7 +152,7 @@
           } @else {
             <span *ngIf="incognitoMode" (click)="turnOffIncognito()" role="button" [attr.aria-label]="t('incognito-mode-alt')">
                 (<i class="fa fa-glasses" aria-hidden="true"></i><span class="visually-hidden">{{t('incognito-mode-label')}}</span>)</span>
-            <span class="book-title-text ms-1" [ngbTooltip]="bookTitle">{{bookTitle}}</span>
+            <span class="book-title-text ms-1" [ngbTooltip]="bookTitle">{{bookTitle}} ({{pageNum+1}}/{{maxPages}})</span>
           }
         </div>
         <button class="btn btn-secondary col-2 col-xs-1" (click)="closeReader()"><i class="fa fa-times-circle" aria-hidden="true"></i></button>

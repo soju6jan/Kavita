@@ -27,6 +27,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using VersOne.Epub;
 using VersOne.Epub.Options;
 using VersOne.Epub.Schema;
+using static Kavita.Common.Configuration;
 
 namespace API.Services;
 
@@ -34,7 +35,9 @@ namespace API.Services;
 
 public interface IBookService
 {
+    int GetTextLinesPerPage();
     int GetNumberOfPages(string filePath);
+    int GetNumberOfPagesText(string filePath);
     string GetCoverImage(string fileFilePath, string fileName, string outputDirectory, EncodeFormat encodeFormat, CoverImageSize size = CoverImageSize.Default);
     ComicInfo? GetComicInfo(string filePath);
     ParserInfo? ParseInfo(string filePath);
@@ -64,6 +67,7 @@ public interface IBookService
 
 public class BookService : IBookService
 {
+    private int TextLinesPerPage = 0;
     private readonly ILogger<BookService> _logger;
     private readonly IDirectoryService _directoryService;
     private readonly IImageService _imageService;
@@ -87,8 +91,12 @@ public class BookService : IBookService
         _directoryService = directoryService;
         _imageService = imageService;
         _mediaErrorService = mediaErrorService;
+        this.TextLinesPerPage = Kavita.Common.Configuration.TextLinesPerPage;
     }
-
+    public int GetTextLinesPerPage()
+    {
+        return this.TextLinesPerPage;
+    }
     private static bool HasClickableHrefPart(HtmlNode anchor)
     {
         return anchor.GetAttributeValue("href", string.Empty).Contains("#")
@@ -741,6 +749,26 @@ public class BookService : IBookService
         return 0;
     }
 
+    public int GetNumberOfPagesText(string filePath)
+    {
+        if (!Parser.IsText(filePath)) return 0;
+
+        try
+        {
+            string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
+            int pages = lines.Length / TextLinesPerPage;
+            if (lines.Length % TextLinesPerPage > 0) pages += 1;
+            return pages;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[GetNumberOfPagesText] There was an exception getting number of pages, defaulting to 0");
+            _mediaErrorService.ReportMediaIssue(filePath, MediaErrorProducer.BookService,
+                "There was an exception getting number of pages, defaulting to 0", ex);
+        }
+        return 0;
+    }
+
     private static string EscapeTags(string content)
     {
         content = Regex.Replace(content, @"<script(.*)(/>)", "<script$1></script>", RegexOptions.None, Parser.RegexTimeout);
@@ -993,16 +1021,19 @@ public class BookService : IBookService
         if (chapter.Files.First().Format == MangaFormat.Text)
         {
             var chaptersListText = new List<BookChapterItem>();
-            chaptersListText.Add(new BookChapterItem
+            //foreach(var page in chapter.Pages)
+            for(int page = 0; page < chapter.Pages ; page++)
             {
-                Title = chapter.Files.First().FileName,
-                Page = 1,
-                Part = "",
-                Children = new List<BookChapterItem>()
-            });
+                chaptersListText.Add(new BookChapterItem
+                {
+                    Title = "" + (page+1) + " Page",
+                    Page = page,
+                    Part = "",
+                    Children = null
+                });
+            }
             return chaptersListText;
         }
-
         
         using var book = await EpubReader.OpenBookAsync(chapter.Files.ElementAt(0).FilePath, BookReaderOptions);
         var mappings = await CreateKeyToPageMappingAsync(book);
@@ -1191,16 +1222,16 @@ public class BookService : IBookService
         try
         {
             string[] lines = null;
-            if (page == 0)
-            {
-                lines = File.ReadAllLines(cachedEpubPath, Encoding.UTF8);
-            } else if (page == 1)
-            {
-                var encoding = CodePagesEncodingProvider.Instance.GetEncoding("euc-kr");
-                lines = File.ReadAllLines(cachedEpubPath, encoding);
-            }
+            lines = File.ReadAllLines(cachedEpubPath, Encoding.UTF8);
+
+            int startLine = page * TextLinesPerPage;
+            int endLine = int.Min(startLine + TextLinesPerPage, lines.Length);
+
             List<string> ret = new List<string>();
-            foreach (var line in lines) {
+            //foreach (var line in lines) {
+            for (int i = startLine; i < endLine; i++)
+            {
+                var line = lines[i];
                 if (string.IsNullOrEmpty(line))
                 {
                     ret.Add("<p>&nbsp;</p>");
@@ -1219,9 +1250,7 @@ public class BookService : IBookService
                     {
                         ret.Add("<p>" + line + "</p>");
                     }
-                    
                 }
-                
             }
             return String.Join("", ret);
         }
@@ -1397,4 +1426,5 @@ public class BookService : IBookService
             _logger.LogError("Line {LineNumber}, Reason: {Reason}", error.Line, error.Reason);
         }
     }
+
 }

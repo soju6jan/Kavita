@@ -1,3 +1,5 @@
+import { animate, style, transition, trigger } from "@angular/animations";
+import { AsyncPipe, NgClass, NgForOf, NgIf, NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -10,35 +12,29 @@ import {
   OnInit,
   Output
 } from '@angular/core';
-import {FormControl, FormGroup, FormsModule, ReactiveFormsModule} from '@angular/forms';
-import {NgbCollapse, NgbModal, NgbRating, NgbTooltip} from '@ng-bootstrap/ng-bootstrap';
-import {Breakpoint, UtilityService} from '../shared/_services/utility.service';
-import {Library} from '../_models/library/library';
-import {allSortFields, FilterEvent, FilterItem, SortField} from '../_models/metadata/series-filter';
-import {ToggleService} from '../_services/toggle.service';
-import {FilterSettings} from './filter-settings';
-import {SeriesFilterV2} from '../_models/metadata/v2/series-filter-v2';
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {TypeaheadComponent} from '../typeahead/_components/typeahead.component';
-import {DrawerComponent} from '../shared/drawer/drawer.component';
-import {AsyncPipe, NgClass, NgForOf, NgIf, NgTemplateOutlet} from '@angular/common';
-import {translate, TranslocoModule} from "@ngneat/transloco";
-import {SortFieldPipe} from "../_pipes/sort-field.pipe";
-import {MetadataBuilderComponent} from "./_components/metadata-builder/metadata-builder.component";
-import {allFields} from "../_models/metadata/v2/filter-field";
-import {MetadataService} from "../_services/metadata.service";
-import {FilterUtilitiesService} from "../shared/_services/filter-utilities.service";
-import {FilterService} from "../_services/filter.service";
-import {ToastrService} from "ngx-toastr";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
+import { NgbCollapse, NgbRating, NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
+import { translate, TranslocoModule } from "@ngneat/transloco";
 import {
-  Select2AutoCreateEvent,
   Select2Module,
-  Select2Option,
-  Select2UpdateEvent,
-  Select2UpdateValue
+  Select2Option
 } from "ng-select2-component";
-import {SmartFilter} from "../_models/metadata/v2/smart-filter";
-import {animate, state, style, transition, trigger} from "@angular/animations";
+import { ToastrService } from "ngx-toastr";
+import { Library } from '../_models/library/library';
+import { allSortFields, FilterEvent, FilterItem, SortField } from '../_models/metadata/series-filter';
+import { allFields } from "../_models/metadata/v2/filter-field";
+import { SeriesFilterV2 } from '../_models/metadata/v2/series-filter-v2';
+import { SortFieldPipe } from "../_pipes/sort-field.pipe";
+import { FilterService } from "../_services/filter.service";
+import { ToggleService } from '../_services/toggle.service';
+import { FilterUtilitiesService } from "../shared/_services/filter-utilities.service";
+import { Breakpoint, UtilityService } from '../shared/_services/utility.service';
+import { DrawerComponent } from '../shared/drawer/drawer.component';
+import { TypeaheadComponent } from '../typeahead/_components/typeahead.component';
+import { MetadataBuilderComponent } from "./_components/metadata-builder/metadata-builder.component";
+import { FilterSettings } from './filter-settings';
 
 const ANIMATION_SPEED = 750;
 
@@ -119,8 +115,7 @@ export class MetadataFilterComponent implements OnInit {
   private readonly cdRef = inject(ChangeDetectorRef);
   private readonly toastr = inject(ToastrService);
 
-
-  constructor(public toggleService: ToggleService, private filterService: FilterService) {
+  constructor(public toggleService: ToggleService, private filterService: FilterService, private router: Router) {
     this.filterService.getAllFilters().subscribe(res => {
       this.smartFilters = res.map(r => {
         return {
@@ -223,7 +218,11 @@ export class MetadataFilterComponent implements OnInit {
     this.fullyLoaded = false;
 
     this.filterV2 = this.deepClone(this.filterSettings.presetsV2);
-
+    
+    var storageValue = localStorage.getItem(this.router.url);
+    if (storageValue != null) {
+      this.filterV2!.sortOptions = JSON.parse(storageValue);
+    }
     this.sortGroup = new FormGroup({
       sortField: new FormControl({value: this.filterV2?.sortOptions?.sortField || SortField.SortName, disabled: this.filterSettings.sortDisabled}, []),
       limitTo: new FormControl(this.filterV2?.limitTo || 0, []),
@@ -289,6 +288,12 @@ export class MetadataFilterComponent implements OnInit {
       this.toastr.success(translate('toasts.smart-filter-updated'));
       this.apply();
     });
+  }
+
+
+  sortSave() {
+    localStorage.setItem(this.router.url, JSON.stringify(this.filterV2?.sortOptions));
+    this.toastr.success("Success");
   }
 
   toggleSelected() {

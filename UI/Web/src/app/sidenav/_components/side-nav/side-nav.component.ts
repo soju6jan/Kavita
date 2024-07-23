@@ -74,9 +74,11 @@ export class SideNavComponent implements OnInit {
   showAll: boolean = false;
   totalSize = 0;
 
-  private showAllSubject = new BehaviorSubject<boolean>(true);
+  // soju6jan
+  storageShowAll: boolean = (localStorage.getItem("showAll") === 'true') ? true : false;
+  private showAllSubject = new BehaviorSubject<boolean>(this.storageShowAll);
   showAll$ = this.showAllSubject.asObservable();
-
+  
   private loadDataSubject = new ReplaySubject<void>();
   loadData$ = this.loadDataSubject.asObservable();
 
@@ -233,11 +235,13 @@ export class SideNavComponent implements OnInit {
 
   showMore() {
     this.showAllSubject.next(true);
+    localStorage.setItem('showAll', 'true');
   }
 
   showLess() {
     this.filterQuery = '';
     this.cdRef.markForCheck();
     this.showAllSubject.next(false);
+    localStorage.setItem('showAll', 'false');
   }
 }

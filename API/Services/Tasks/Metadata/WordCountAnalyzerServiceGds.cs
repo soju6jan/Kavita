@@ -153,7 +153,7 @@ public class WordCountAnalyzerServiceGds : IWordCountAnalyzerServiceGds
 
     private async Task ProcessSeries(Series series, bool forceUpdate = false, bool useFileName = true, GdsInfo gdsInfo=null)
     {
-        var isEpub = series.Format == MangaFormat.Epub;
+        var isEpub = (series.Format == MangaFormat.Epub || series.Format == MangaFormat.Text);
         var existingWordCount = series.WordCount;
         series.WordCount = 0;
         foreach (var volume in series.Volumes)
@@ -234,12 +234,14 @@ public class WordCountAnalyzerServiceGds : IWordCountAnalyzerServiceGds
                 }
                 else if (flagGdsInfo == false && series.Format == MangaFormat.Text)
                 {
-                    /*
+                    
                     try
                     {
                         var sum = 0;
                         foreach (var file in chapter.Files)
                         {
+                            // SOJU6JAN READ POINT - 워드카운트
+                            _logger.LogWarning("wordCount 파일 오픈 시도 TEXT - 워드카운트 {FilePath}", file.FilePath);
                             var filePath = file.FilePath;
                             var all = File.ReadAllText(filePath);
                             sum += all.Length;
@@ -250,11 +252,12 @@ public class WordCountAnalyzerServiceGds : IWordCountAnalyzerServiceGds
                     }
                     catch (Exception ex)
                     { }
-                    */
-                    var sum = 10000;
+                    /*
+                    //var sum = 10000;
                     chapter.WordCount = sum;
                     series.WordCount += sum;
                     volume.WordCount += sum;
+                    */
                 }
 
                 var est = _readerService.GetTimeEstimate(chapter.WordCount, chapter.Pages, isEpub);
