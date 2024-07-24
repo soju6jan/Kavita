@@ -1029,7 +1029,7 @@ public class BookService : IBookService
                     Title = "" + (page+1) + " Page",
                     Page = page,
                     Part = "",
-                    Children = null
+                    Children = new List<BookChapterItem>()
                 });
             }
             return chaptersListText;
