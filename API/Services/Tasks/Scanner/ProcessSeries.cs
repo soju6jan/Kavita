@@ -152,7 +152,7 @@ public class ProcessSeries : IProcessSeries
             gdsInfo = GdsUtil.getGdsInfoByFile(firstInfo.FullFilePath);
             
         }
-        if (gdsInfo != null && gdsInfo.action["all_file_is_special"] == "true")
+        if (gdsInfo != null && gdsInfo.action.ContainsKey("all_file_is_special") && gdsInfo.action["all_file_is_special"] == "true")
         {
             foreach(var info in parsedInfos)
             {
