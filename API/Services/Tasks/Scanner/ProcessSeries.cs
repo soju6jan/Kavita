@@ -1167,6 +1167,11 @@ public class ProcessSeries : IProcessSeries
                 if (gdsFile != null)
                 {
                     pages = gdsFile.page;
+                    if (Parser.Parser.IsText(key))
+                    {
+                        pages = gdsFile.page / _bookService.GetTextLinesPerPage();
+                        if (gdsFile.page % _bookService.GetTextLinesPerPage() > 0) pages += 1;
+                    }
                     flagPage = true;
                 }
             }
