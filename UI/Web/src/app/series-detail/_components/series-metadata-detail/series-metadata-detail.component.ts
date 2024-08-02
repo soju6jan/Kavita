@@ -1,3 +1,4 @@
+import { CommonModule } from "@angular/common";
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -8,37 +9,36 @@ import {
   SimpleChanges,
   ViewEncapsulation
 } from '@angular/core';
-import {Router} from '@angular/router';
-import {TagBadgeComponent, TagBadgeCursor} from '../../../shared/tag-badge/tag-badge.component';
-import {FilterUtilitiesService} from '../../../shared/_services/filter-utilities.service';
-import {Breakpoint, UtilityService} from '../../../shared/_services/utility.service';
-import {MangaFormat} from '../../../_models/manga-format';
-import {ReadingList} from '../../../_models/reading-list';
-import {Series} from '../../../_models/series';
-import {SeriesMetadata} from '../../../_models/metadata/series-metadata';
-import {ImageService} from 'src/app/_services/image.service';
-import {CommonModule} from "@angular/common";
-import {BadgeExpanderComponent} from "../../../shared/badge-expander/badge-expander.component";
-import {SafeHtmlPipe} from "../../../_pipes/safe-html.pipe";
-import {ExternalRatingComponent} from "../external-rating/external-rating.component";
-import {ReadMoreComponent} from "../../../shared/read-more/read-more.component";
-import {A11yClickDirective} from "../../../shared/a11y-click.directive";
-import {PersonBadgeComponent} from "../../../shared/person-badge/person-badge.component";
-import {NgbCollapse} from "@ng-bootstrap/ng-bootstrap";
-import {SeriesInfoCardsComponent} from "../../../cards/series-info-cards/series-info-cards.component";
-import {LibraryType} from "../../../_models/library/library";
-import {MetadataDetailComponent} from "../metadata-detail/metadata-detail.component";
-import {TranslocoDirective} from "@ngneat/transloco";
-import {FilterField} from "../../../_models/metadata/v2/filter-field";
-import {FilterComparison} from "../../../_models/metadata/v2/filter-comparison";
-import {ImageComponent} from "../../../shared/image/image.component";
-import {Rating} from "../../../_models/rating";
-import {CollectionTagService} from "../../../_services/collection-tag.service";
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {shareReplay} from "rxjs/operators";
-import {PromotedIconComponent} from "../../../shared/_components/promoted-icon/promoted-icon.component";
-import {Observable} from "rxjs";
-import {UserCollection} from "../../../_models/collection-tag";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { Router } from '@angular/router';
+import { NgbCollapse } from "@ng-bootstrap/ng-bootstrap";
+import { TranslocoDirective } from "@ngneat/transloco";
+import { Observable } from "rxjs";
+import { shareReplay } from "rxjs/operators";
+import { ImageService } from 'src/app/_services/image.service';
+import { UserCollection } from "../../../_models/collection-tag";
+import { LibraryType } from "../../../_models/library/library";
+import { MangaFormat } from '../../../_models/manga-format';
+import { SeriesMetadata } from '../../../_models/metadata/series-metadata';
+import { FilterComparison } from "../../../_models/metadata/v2/filter-comparison";
+import { FilterField } from "../../../_models/metadata/v2/filter-field";
+import { Rating } from "../../../_models/rating";
+import { ReadingList } from '../../../_models/reading-list';
+import { Series } from '../../../_models/series';
+import { SafeHtmlPipe } from "../../../_pipes/safe-html.pipe";
+import { CollectionTagService } from "../../../_services/collection-tag.service";
+import { SeriesInfoCardsComponent } from "../../../cards/series-info-cards/series-info-cards.component";
+import { PromotedIconComponent } from "../../../shared/_components/promoted-icon/promoted-icon.component";
+import { FilterUtilitiesService } from '../../../shared/_services/filter-utilities.service';
+import { Breakpoint, UtilityService } from '../../../shared/_services/utility.service';
+import { A11yClickDirective } from "../../../shared/a11y-click.directive";
+import { BadgeExpanderComponent } from "../../../shared/badge-expander/badge-expander.component";
+import { ImageComponent } from "../../../shared/image/image.component";
+import { PersonBadgeComponent } from "../../../shared/person-badge/person-badge.component";
+import { ReadMoreComponent } from "../../../shared/read-more/read-more.component";
+import { TagBadgeComponent, TagBadgeCursor } from '../../../shared/tag-badge/tag-badge.component';
+import { ExternalRatingComponent } from "../external-rating/external-rating.component";
+import { MetadataDetailComponent } from "../metadata-detail/metadata-detail.component";
 
 
 @Component({
@@ -78,7 +78,7 @@ export class SeriesMetadataDetailComponent implements OnChanges, OnInit {
   @Input({required: true}) series!: Series;
   @Input({required: true}) ratings: Array<Rating> = [];
 
-  isCollapsed: boolean = true;
+  isCollapsed: boolean = false;
   hasExtendedProperties: boolean = false;
 
   /**
@@ -94,8 +94,10 @@ export class SeriesMetadataDetailComponent implements OnChanges, OnInit {
 
   ngOnInit() {
     // If on desktop, we can just have all the data expanded by default:
-    this.isCollapsed = true; // this.utilityService.getActiveBreakpoint() < Breakpoint.Desktop;
+    //this.isCollapsed = false; // this.utilityService.getActiveBreakpoint() < Breakpoint.Desktop;
     // Check if there is a lot of extended data, if so, re-collapse
+    this.isCollapsed = (localStorage.getItem("seeMore") === 'true') || false;
+    /*
     const sum = (this.seriesMetadata.colorists.length + this.seriesMetadata.editors.length
       + this.seriesMetadata.coverArtists.length + this.seriesMetadata.inkers.length
       + this.seriesMetadata.letterers.length + this.seriesMetadata.pencillers.length
@@ -103,8 +105,9 @@ export class SeriesMetadataDetailComponent implements OnChanges, OnInit {
       + this.seriesMetadata.imprints.length + this.seriesMetadata.translators.length
       + this.seriesMetadata.writers.length + this.seriesMetadata.teams.length + this.seriesMetadata.locations.length) / 13;
     if (sum > 10) {
-      this.isCollapsed = true;
+      this.isCollapsed = false;
     }
+    */
 
     this.collections$ = this.collectionTagService.allCollectionsForSeries(this.series.id).pipe(
       takeUntilDestroyed(this.destroyRef), shareReplay({bufferSize: 1, refCount: true}));
@@ -130,11 +133,18 @@ export class SeriesMetadataDetailComponent implements OnChanges, OnInit {
 
 
     this.seriesSummary = (this.seriesMetadata?.summary === null ? '' : this.seriesMetadata.summary).replace(/\n/g, '<br>');
+
+    const showImg = (localStorage.getItem("showImg") === 'true') || false;
+    if (!showImg) {
+      this.seriesSummary = this.seriesSummary.replace(/<IMG(.*?)>/gi,"");
+      this.seriesSummary = this.seriesSummary.replace(/<br><br>/g, "<br>");
+    }
     this.cdRef.markForCheck();
   }
 
   toggleView() {
     this.isCollapsed = !this.isCollapsed;
+    localStorage.setItem("seeMore", this.isCollapsed + "");
     this.cdRef.markForCheck();
   }
 

@@ -1,7 +1,7 @@
+import { CommonModule } from "@angular/common";
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnChanges } from '@angular/core';
-import {CommonModule} from "@angular/common";
-import {SafeHtmlPipe} from "../../_pipes/safe-html.pipe";
-import {TranslocoDirective} from "@ngneat/transloco";
+import { TranslocoDirective } from "@ngneat/transloco";
+import { SafeHtmlPipe } from "../../_pipes/safe-html.pipe";
 
 @Component({
   selector: 'app-read-more',
@@ -37,6 +37,7 @@ export class ReadMoreComponent implements OnChanges {
 
   toggleView() {
     this.isCollapsed = !this.isCollapsed;
+    localStorage.setItem("readMore", this.isCollapsed + "");
     this.determineView();
   }
 
@@ -48,6 +49,7 @@ export class ReadMoreComponent implements OnChanges {
         return;
     }
     this.hideToggle = false;
+    this.isCollapsed = (localStorage.getItem("readMore") === 'true') || false;
     if (this.isCollapsed) {
       this.currentText = this.text.substring(0, this.maxLength);
       this.currentText = this.currentText.substring(0, Math.min(this.currentText.length, this.currentText.lastIndexOf(' ')));

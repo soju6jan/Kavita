@@ -1,17 +1,17 @@
 
 import { LayoutMode } from 'src/app/manga-reader/_models/layout-mode';
-import { BookPageLayoutMode } from '../readers/book-page-layout-mode';
 import { PageLayoutMode } from '../page-layout-mode';
+import { BookPageLayoutMode } from '../readers/book-page-layout-mode';
 import { PageSplitOption } from './page-split-option';
+import { PdfLayoutMode } from "./pdf-layout-mode";
+import { PdfScrollMode } from "./pdf-scroll-mode";
+import { PdfSpreadMode } from "./pdf-spread-mode";
+import { PdfTheme } from "./pdf-theme";
 import { ReaderMode } from './reader-mode';
 import { ReadingDirection } from './reading-direction';
 import { ScalingOption } from './scaling-option';
 import { SiteTheme } from './site-theme';
-import {WritingStyle} from "./writing-style";
-import {PdfTheme} from "./pdf-theme";
-import {PdfScrollMode} from "./pdf-scroll-mode";
-import {PdfLayoutMode} from "./pdf-layout-mode";
-import {PdfSpreadMode} from "./pdf-spread-mode";
+import { WritingStyle } from "./writing-style";
 
 export interface Preferences {
     // Manga Reader

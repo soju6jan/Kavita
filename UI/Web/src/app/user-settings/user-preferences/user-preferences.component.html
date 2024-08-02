@@ -603,6 +603,43 @@
                     </div>
                   </div>
                 </div>
+
+                <div ngbAccordionItem [id]="AccordionPanelID.BrowserSettings">
+                  <h2 class="accordion-header" ngbAccordionHeader>
+                    <button class="accordion-button" ngbAccordionButton type="button"
+                            [attr.aria-expanded]="acc.isExpanded(AccordionPanelID.BrowserSettings)" aria-controls="collapseOne">
+                      Browser Settings
+                    </button>
+                  </h2>
+
+                  <div ngbAccordionCollapse>
+                    <div ngbAccordionBody>
+                      <ng-template>
+                        <div class="row g-0">
+                          <div class="col-md-12 col-sm-12 pe-2 mb-2">
+                            <div class="form-check form-switch">
+                              <input type="checkbox" id="showImg" role="switch" formControlName="showImg"
+                                aria-describedby="showImg-help" class="form-check-input"
+                                aria-labelledby="auto-close-label">
+                              <label class="form-check-label"
+                                for="showImg">Show img tag on series detail view.</label>
+                              <i class="fa fa-info-circle ms-1" aria-hidden="true" placement="right"
+                                [ngbTooltip]="showImgTooltip" role="button" tabindex="0"></i>
+                            </div>
+                            <ng-template #showImgTooltip>Show img tag on series detail view.</ng-template>
+                            <span class="visually-hidden" id="showImg-help">
+                              <ng-container [ngTemplateOutlet]="showImgTooltip"></ng-container>
+                            </span>
+                          </div>
+                        </div>
+                        <div class="col-auto d-flex d-md-block justify-content-sm-center text-md-end mb-3">
+                          <button type="submit" class="flex-fill btn btn-primary" (click)="saveBrowser()"
+                                  aria-describedby="reading-panel">{{t('save')}}</button>
+                        </div>
+                      </ng-template>
+                    </div>
+                  </div>
+                </div>
               </div>
             </form>
           </ng-container>

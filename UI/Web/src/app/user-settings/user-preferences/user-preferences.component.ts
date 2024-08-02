@@ -1,3 +1,4 @@
+import { NgFor, NgIf, NgTemplateOutlet, TitleCasePipe } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -7,46 +8,10 @@ import {
   OnDestroy,
   OnInit
 } from '@angular/core';
-import {FormControl, FormGroup, ReactiveFormsModule} from '@angular/forms';
-import {ToastrService} from 'ngx-toastr';
-import {take} from 'rxjs/operators';
-import {Title} from '@angular/platform-browser';
-import {
-  bookLayoutModes,
-  bookWritingStyles,
-  layoutModes,
-  pageLayoutModes,
-  pageSplitOptions,
-  pdfLayoutModes,
-  pdfScrollModes,
-  pdfSpreadModes,
-  pdfThemes,
-  Preferences,
-  readingDirections,
-  readingModes,
-  scalingOptions
-} from 'src/app/_models/preferences/preferences';
-import {User} from 'src/app/_models/user';
-import {AccountService} from 'src/app/_services/account.service';
-import {ActivatedRoute, Router, RouterLink} from '@angular/router';
-import {SettingsService} from 'src/app/admin/settings.service';
-import {BookPageLayoutMode} from 'src/app/_models/readers/book-page-layout-mode';
-import {forkJoin} from 'rxjs';
-import {bookColorThemes} from 'src/app/book-reader/_components/reader-settings/reader-settings.component';
-import {BookService} from 'src/app/book-reader/_services/book.service';
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {SentenceCasePipe} from '../../_pipes/sentence-case.pipe';
-import {UserHoldsComponent} from '../user-holds/user-holds.component';
-import {UserScrobbleHistoryComponent} from '../../_single-module/user-scrobble-history/user-scrobble-history.component';
-import {UserStatsComponent} from '../../statistics/_components/user-stats/user-stats.component';
-import {ManageDevicesComponent} from '../manage-devices/manage-devices.component';
-import {ThemeManagerComponent} from '../theme-manager/theme-manager.component';
-import {ApiKeyComponent} from '../api-key/api-key.component';
-import {ColorPickerModule} from 'ngx-color-picker';
-import {ChangeAgeRestrictionComponent} from '../change-age-restriction/change-age-restriction.component';
-import {ChangePasswordComponent} from '../change-password/change-password.component';
-import {ChangeEmailComponent} from '../change-email/change-email.component';
-import {NgFor, NgIf, NgTemplateOutlet, TitleCasePipe} from '@angular/common';
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { Title } from '@angular/platform-browser';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   NgbAccordionBody,
   NgbAccordionButton,
@@ -64,25 +29,59 @@ import {
   NgbNavOutlet,
   NgbTooltip
 } from '@ng-bootstrap/ng-bootstrap';
+import { translate, TranslocoDirective } from "@ngneat/transloco";
+import { ColorPickerModule } from 'ngx-color-picker';
+import { ToastrService } from 'ngx-toastr';
+import { forkJoin } from 'rxjs';
+import { take } from 'rxjs/operators';
+import {
+  bookLayoutModes,
+  bookWritingStyles,
+  layoutModes,
+  pageLayoutModes,
+  pageSplitOptions,
+  pdfScrollModes,
+  pdfSpreadModes,
+  pdfThemes,
+  Preferences,
+  readingDirections,
+  readingModes,
+  scalingOptions
+} from 'src/app/_models/preferences/preferences';
+import { BookPageLayoutMode } from 'src/app/_models/readers/book-page-layout-mode';
+import { User } from 'src/app/_models/user';
+import { AccountService } from 'src/app/_services/account.service';
+import { SettingsService } from 'src/app/admin/settings.service';
+import { bookColorThemes } from 'src/app/book-reader/_components/reader-settings/reader-settings.component';
+import { BookService } from 'src/app/book-reader/_services/book.service';
+import { Language } from "../../_models/metadata/language";
+import { PdfScrollMode } from "../../_models/preferences/pdf-scroll-mode";
+import { PdfSpreadMode } from "../../_models/preferences/pdf-spread-mode";
+import { PdfTheme } from "../../_models/preferences/pdf-theme";
+import { SentenceCasePipe } from '../../_pipes/sentence-case.pipe';
+import { LocalizationService } from "../../_services/localization.service";
+import { UserScrobbleHistoryComponent } from '../../_single-module/user-scrobble-history/user-scrobble-history.component';
+import { PdfLayoutModePipe } from "../../pdf-reader/_pipe/pdf-layout-mode.pipe";
+import { LoadingComponent } from "../../shared/loading/loading.component";
 import {
   SideNavCompanionBarComponent
 } from '../../sidenav/_components/side-nav-companion-bar/side-nav-companion-bar.component';
-import {LocalizationService} from "../../_services/localization.service";
-import {Language} from "../../_models/metadata/language";
-import {translate, TranslocoDirective} from "@ngneat/transloco";
-import {LoadingComponent} from "../../shared/loading/loading.component";
-import {ManageScrobblingProvidersComponent} from "../manage-scrobbling-providers/manage-scrobbling-providers.component";
-import {PdfLayoutModePipe} from "../../pdf-reader/_pipe/pdf-layout-mode.pipe";
-import {PdfTheme} from "../../_models/preferences/pdf-theme";
-import {PdfScrollMode} from "../../_models/preferences/pdf-scroll-mode";
-import {PdfLayoutMode} from "../../_models/preferences/pdf-layout-mode";
-import {PdfSpreadMode} from "../../_models/preferences/pdf-spread-mode";
+import { UserStatsComponent } from '../../statistics/_components/user-stats/user-stats.component';
+import { ApiKeyComponent } from '../api-key/api-key.component';
+import { ChangeAgeRestrictionComponent } from '../change-age-restriction/change-age-restriction.component';
+import { ChangeEmailComponent } from '../change-email/change-email.component';
+import { ChangePasswordComponent } from '../change-password/change-password.component';
+import { ManageDevicesComponent } from '../manage-devices/manage-devices.component';
+import { ManageScrobblingProvidersComponent } from "../manage-scrobbling-providers/manage-scrobbling-providers.component";
+import { ThemeManagerComponent } from '../theme-manager/theme-manager.component';
+import { UserHoldsComponent } from '../user-holds/user-holds.component';
 
 enum AccordionPanelID {
   ImageReader = 'image-reader',
   BookReader = 'book-reader',
   GlobalSettings = 'global-settings',
-  PdfReader = 'pdf-reader'
+  PdfReader = 'pdf-reader',
+  BrowserSettings = 'browser-settings'
 }
 
 enum FragmentID {
@@ -264,6 +263,9 @@ export class UserPreferencesComponent implements OnInit, OnDestroy {
       this.settingsForm.addControl('shareReviews', new FormControl(this.user.preferences.shareReviews, []));
       this.settingsForm.addControl('locale', new FormControl(this.user.preferences.locale || 'en', []));
 
+      const showImg = (localStorage.getItem("showImg") === 'true') || false;
+      this.settingsForm.addControl('showImg', new FormControl(showImg, []));
+
       if (this.locales.length === 1) {
         this.settingsForm.get('locale')?.disable();
       }
@@ -371,6 +373,12 @@ export class UserPreferencesComponent implements OnInit, OnDestroy {
     }));
   }
 
+  saveBrowser() {
+    if (this.user === undefined) return;
+    const modelSettings = this.settingsForm.value;
+    localStorage.setItem("showImg", modelSettings.showImg +"");
+    this.toastr.success(translate('user-preferences.success-toast'));
+  }
 
   handleBackgroundColorChange() {
     this.settingsForm.markAsDirty();
