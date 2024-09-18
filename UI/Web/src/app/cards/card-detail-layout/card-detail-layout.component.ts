@@ -1,4 +1,4 @@
-import {CommonModule, DOCUMENT} from '@angular/common';
+import { CommonModule, DOCUMENT } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -17,26 +17,26 @@ import {
   TrackByFunction,
   ViewChild
 } from '@angular/core';
-import {Router} from '@angular/router';
-import {VirtualScrollerComponent, VirtualScrollerModule} from '@iharbeck/ngx-virtual-scroller';
-import {FilterSettings} from 'src/app/metadata-filter/filter-settings';
-import {FilterUtilitiesService} from 'src/app/shared/_services/filter-utilities.service';
-import {Breakpoint, UtilityService} from 'src/app/shared/_services/utility.service';
-import {JumpKey} from 'src/app/_models/jumpbar/jump-key';
-import {Library} from 'src/app/_models/library/library';
-import {Pagination} from 'src/app/_models/pagination';
-import {FilterEvent, FilterItem, SortField} from 'src/app/_models/metadata/series-filter';
-import {ActionItem} from 'src/app/_services/action-factory.service';
-import {JumpbarService} from 'src/app/_services/jumpbar.service';
-import {ScrollService} from 'src/app/_services/scroll.service';
-import {LoadingComponent} from "../../shared/loading/loading.component";
+import { Router } from '@angular/router';
+import { VirtualScrollerComponent, VirtualScrollerModule } from '@iharbeck/ngx-virtual-scroller';
+import { JumpKey } from 'src/app/_models/jumpbar/jump-key';
+import { Library } from 'src/app/_models/library/library';
+import { FilterEvent, FilterItem, SortField } from 'src/app/_models/metadata/series-filter';
+import { Pagination } from 'src/app/_models/pagination';
+import { ActionItem } from 'src/app/_services/action-factory.service';
+import { JumpbarService } from 'src/app/_services/jumpbar.service';
+import { ScrollService } from 'src/app/_services/scroll.service';
+import { FilterSettings } from 'src/app/metadata-filter/filter-settings';
+import { FilterUtilitiesService } from 'src/app/shared/_services/filter-utilities.service';
+import { Breakpoint, UtilityService } from 'src/app/shared/_services/utility.service';
+import { LoadingComponent } from "../../shared/loading/loading.component";
 
 
-import {NgbTooltip} from "@ng-bootstrap/ng-bootstrap";
-import {MetadataFilterComponent} from "../../metadata-filter/metadata-filter.component";
-import {TranslocoDirective} from "@ngneat/transloco";
-import {CardActionablesComponent} from "../../_single-module/card-actionables/card-actionables.component";
-import {SeriesFilterV2} from "../../_models/metadata/v2/series-filter-v2";
+import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
+import { TranslocoDirective } from "@ngneat/transloco";
+import { SeriesFilterV2 } from "../../_models/metadata/v2/series-filter-v2";
+import { CardActionablesComponent } from "../../_single-module/card-actionables/card-actionables.component";
+import { MetadataFilterComponent } from "../../metadata-filter/metadata-filter.component";
 
 
 const ANIMATION_TIME_MS = 0;
@@ -148,15 +148,22 @@ export class CardDetailLayoutComponent implements OnInit, OnChanges {
     // TODO: I wish I had signals so I can tap into when isLoading is false and trigger the scroll code
 
     // Don't resume jump key when there is a custom sort order, as it won't work
-    if (!this.hasCustomSort()) {
+    //if (!this.hasCustomSort()) {
+    // soju6jan
+    if (true) {
       if (!this.hasResumedJumpKey && this.jumpBarKeysToRender.length > 0) {
         const resumeKey = this.jumpbarService.getResumeKey(this.router.url);
         if (resumeKey === '') return;
-        const keys = this.jumpBarKeysToRender.filter(k => k.key === resumeKey);
-        if (keys.length < 1) return;
+        //const keys = this.jumpBarKeysToRender.filter(k => k.key === resumeKey);
+        //if (keys.length < 1) return;
 
         this.hasResumedJumpKey = true;
-        setTimeout(() => this.scrollTo(keys[0]), 100);
+        //this.hasResumedJumpKey = !this.hasCustomSort();
+
+
+        //setTimeout(() => this.scrollTo(keys[0]), 100);
+        setTimeout(() => this.scrollToNumber(parseInt(resumeKey)), 100);
+        //this.scrollToNumber(parseInt(resumeKey))
       }
     }
     //  else {
@@ -208,7 +215,19 @@ export class CardDetailLayoutComponent implements OnInit, OnChanges {
     this.cdRef.markForCheck();
   }
 
+  scrollToNumber(jumpKey: number) {
+    //if (this.hasCustomSort()) return;
+
+    //let targetIndex = 0;
+    //this.virtualScroller.scrollToIndex(targetIndex, true, 0, ANIMATION_TIME_MS);
+    //this.jumpbarService.saveScrollOffset(this.router.url, jumpKey);
+    this.virtualScroller.scrollToPosition(jumpKey);
+    this.cdRef.markForCheck();
+  }
+
+
   tryToSaveJumpKey(item: any) {
+    /*
     let name = '';
     if (item.hasOwnProperty('name')) {
       name = item.name;
@@ -216,5 +235,7 @@ export class CardDetailLayoutComponent implements OnInit, OnChanges {
       name = item.title;
     }
     this.jumpbarService.saveResumeKey(this.router.url, name.charAt(0));
+    */
+    this.jumpbarService.saveResumeKey(this.router.url, this.virtualScroller.viewPortInfo.scrollStartPosition.toString());
   }
 }
