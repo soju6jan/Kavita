@@ -1,6 +1,7 @@
 import { inject, Pipe, PipeTransform } from '@angular/core';
 import { TranslocoService } from "@ngneat/transloco";
 import { LibraryType } from '../_models/library/library';
+import {TranslocoService} from "@jsverse/transloco";
 
 /**
  * Returns the name of the LibraryType

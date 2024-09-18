@@ -50,8 +50,7 @@ import {
   PersonalTableOfContentsComponent,
   PersonalToCEvent
 } from "../personal-table-of-contents/personal-table-of-contents.component";
-import { PageStyle, ReaderSettingsComponent } from '../reader-settings/reader-settings.component';
-import { TableOfContentsComponent } from '../table-of-contents/table-of-contents.component';
+import {translate, TranslocoDirective} from "@jsverse/transloco";
 
 
 enum TabID {
@@ -482,10 +481,10 @@ export class BookReaderComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   constructor(@Inject(DOCUMENT) private document: Document) {
-      this.navService.hideNavBar();
-      this.themeService.clearThemes();
-      this.navService.hideSideNav();
-      this.cdRef.markForCheck();
+    this.navService.hideNavBar();
+    this.navService.hideSideNav();
+    this.themeService.clearThemes();
+    this.cdRef.markForCheck();
   }
 
   /**

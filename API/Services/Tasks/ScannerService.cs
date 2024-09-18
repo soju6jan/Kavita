@@ -229,7 +229,7 @@ public class ScannerService : IScannerService
             gdsInfo = GdsUtil.getGdsInfoByFile(firstFile.FilePath);
             if (gdsInfo == null)
             {
-                _logger.LogDebug("[ScannerService] 에러 {SeriesFolderPath}", series.FolderPath);
+                _logger.LogDebug("[ScannerService] ���� {SeriesFolderPath}", series.FolderPath);
             }
         }
         var existingChapterIdsToClean = await _unitOfWork.SeriesRepository.GetChapterIdsForSeriesAsync(new[] {seriesId});
@@ -242,11 +242,11 @@ public class ScannerService : IScannerService
         {
             if (library.Type != LibraryType.GDS)
             {
-                BackgroundJob.Enqueue(() => _metadataService.GenerateCoversForSeries(series.LibraryId, seriesId, false));
+                BackgroundJob.Enqueue(() => _metadataService.GenerateCoversForSeries(series.LibraryId, seriesId, false, false));
                 BackgroundJob.Enqueue(() => _wordCountAnalyzerService.ScanSeries(library.Id, seriesId, bypassFolderOptimizationChecks));
                 return;
             } else {
-                BackgroundJob.Enqueue(() => _metadataServiceGds.GenerateCoversForSeries(series.LibraryId, seriesId, false, gdsInfo));
+                BackgroundJob.Enqueue(() => _metadataServiceGds.GenerateCoversForSeries(series.LibraryId, seriesId, false, false, gdsInfo));
                 BackgroundJob.Enqueue(() => _wordCountAnalyzerServiceGds.ScanSeries(library.Id, seriesId, bypassFolderOptimizationChecks, gdsInfo));
                 return;
             }

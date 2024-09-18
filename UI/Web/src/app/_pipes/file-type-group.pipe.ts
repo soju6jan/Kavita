@@ -1,6 +1,6 @@
 import { Pipe, PipeTransform } from '@angular/core';
-import { translate } from "@ngneat/transloco";
-import { FileTypeGroup } from "../_models/library/file-type-group.enum";
+import {FileTypeGroup} from "../_models/library/file-type-group.enum";
+import {translate} from "@jsverse/transloco";
 
 @Pipe({
   name: 'fileTypeGroup',

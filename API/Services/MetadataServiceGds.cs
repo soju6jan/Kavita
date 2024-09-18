@@ -14,6 +14,7 @@ using API.SignalR;
 using Hangfire;
 using Microsoft.Extensions.Logging;
 using API.Services.Tasks;
+using API.Entities.Interfaces;
 
 namespace API.Services;
 #nullable enable
@@ -27,7 +28,7 @@ public interface IMetadataServiceGds
     /// <param name="forceUpdate"></param>
     [DisableConcurrentExecution(timeoutInSeconds: 60 * 60 * 60)]
     [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
-    Task GenerateCoversForLibrary(int libraryId, bool forceUpdate = false);
+    Task GenerateCoversForLibrary(int libraryId, bool forceUpdate = false, bool forceColorScape = false);
     /// <summary>
     /// Performs a forced refresh of cover images just for a series and it's nested entities
     /// </summary>
@@ -35,8 +36,8 @@ public interface IMetadataServiceGds
     /// <param name="seriesId"></param>
     /// <param name="forceUpdate">Overrides any cache logic and forces execution</param>
 
-    Task GenerateCoversForSeries(int libraryId, int seriesId, bool forceUpdate = true, GdsInfo gdsInfo=null);
-    Task GenerateCoversForSeries(Series series, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceUpdate = false, GdsInfo gdsInfo=null);
+    Task GenerateCoversForSeries(int libraryId, int seriesId, bool forceUpdate = true, bool forceColorScape = false, GdsInfo gdsInfo=null);
+    Task GenerateCoversForSeries(Series series, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceUpdate = false, bool forceColorScape = true, GdsInfo gdsInfo=null);
     Task RemoveAbandonedMetadataKeys();
 }
 
@@ -51,10 +52,12 @@ public class MetadataServiceGds : IMetadataServiceGds
     private readonly ICacheHelper _cacheHelper;
     private readonly IReadingItemService _readingItemService;
     private readonly IDirectoryService _directoryService;
+    private readonly IImageService _imageService;
     private readonly IList<SignalRMessage> _updateEvents = new List<SignalRMessage>();
     public MetadataServiceGds(IUnitOfWork unitOfWork, ILogger<MetadataServiceGds> logger,
         IEventHub eventHub, ICacheHelper cacheHelper,
-        IReadingItemService readingItemService, IDirectoryService directoryService)
+        IReadingItemService readingItemService, IDirectoryService directoryService,
+        IImageService imageService)
     {
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -62,6 +65,7 @@ public class MetadataServiceGds : IMetadataServiceGds
         _cacheHelper = cacheHelper;
         _readingItemService = readingItemService;
         _directoryService = directoryService;
+        _imageService = imageService;
     }
 
     /// <summary>
@@ -70,14 +74,25 @@ public class MetadataServiceGds : IMetadataServiceGds
     /// <param name="chapter"></param>
     /// <param name="forceUpdate">Force updating cover image even if underlying file has not been modified or chapter already has a cover image</param>
     /// <param name="encodeFormat">Convert image to Encoding Format when extracting the cover</param>
-    private Task<bool> UpdateChapterCoverImage(Chapter chapter, bool forceUpdate, EncodeFormat encodeFormat, CoverImageSize coverImageSize, GdsInfo gdsInfo)
+    private Task<bool> UpdateChapterCoverImage(Chapter chapter, bool forceUpdate, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceColorScape = false, GdsInfo gdsInfo=null)
     {
+        if (chapter == null) return Task.FromResult(false);
+
         var firstFile = chapter.Files.MinBy(x => x.Chapter);
         if (firstFile == null) return Task.FromResult(false);
 
         if (!_cacheHelper.ShouldUpdateCoverImage(_directoryService.FileSystem.Path.Join(_directoryService.CoverImageDirectory, chapter.CoverImage),
                 firstFile, chapter.Created, forceUpdate, chapter.CoverImageLocked))
+        {
+            if(NeedsColorSpace(chapter, forceColorScape))
+            {
+                _imageService.UpdateColorScape(chapter);
+                _unitOfWork.ChapterRepository.Update(chapter);
+                _updateEvents.Add(MessageFactory.CoverUpdateEvent(chapter.Id, MessageFactoryEntityTypes.Chapter));
+            }
+
             return Task.FromResult(false);
+        }
 
         _logger.LogDebug("[MetadataServiceGDS] Generating cover image for {File}", firstFile.FilePath);
                 
@@ -134,18 +149,37 @@ public class MetadataServiceGds : IMetadataServiceGds
         firstFile.UpdateLastModified();
     }
 
+    private static bool NeedsColorSpace(IHasCoverImage? entity, bool force)
+    {
+        if (entity == null) return false;
+        if (force) return true;
+
+        return !string.IsNullOrEmpty(entity.CoverImage) &&
+               (string.IsNullOrEmpty(entity.PrimaryColor) || string.IsNullOrEmpty(entity.SecondaryColor));
+    }
+
     /// <summary>
     /// Updates the cover image for a Volume
     /// </summary>
     /// <param name="volume"></param>
     /// <param name="forceUpdate">Force updating cover image even if underlying file has not been modified or chapter already has a cover image</param>
-    private Task<bool> UpdateVolumeCoverImage(API.Entities.Volume? volume, bool forceUpdate)
+    private Task<bool> UpdateVolumeCoverImage(API.Entities.Volume? volume, bool forceUpdate, bool forceColorScape = false)
     {
         // We need to check if Volume coverImage matches first chapters if forceUpdate is false
-        if (volume == null || !_cacheHelper.ShouldUpdateCoverImage(
-                _directoryService.FileSystem.Path.Join(_directoryService.CoverImageDirectory, volume.CoverImage),
-                null, volume.Created, forceUpdate)) return Task.FromResult(false);
+        if (volume == null) return Task.FromResult(false);
 
+        if (!_cacheHelper.ShouldUpdateCoverImage(
+                _directoryService.FileSystem.Path.Join(_directoryService.CoverImageDirectory, volume.CoverImage),
+                null, volume.Created, forceUpdate))
+        {
+            if (NeedsColorSpace(volume, forceColorScape))
+            {
+                _imageService.UpdateColorScape(volume);
+                _unitOfWork.VolumeRepository.Update(volume);
+                _updateEvents.Add(MessageFactory.CoverUpdateEvent(volume.Id, MessageFactoryEntityTypes.Volume));
+            }
+            return Task.FromResult(false);
+        }
 
         // For cover selection, chapters need to try for issue 1 first, then fallback to first sort order
         volume.Chapters ??= new List<Chapter>();
@@ -168,13 +202,21 @@ public class MetadataServiceGds : IMetadataServiceGds
     /// </summary>
     /// <param name="series"></param>
     /// <param name="forceUpdate">Force updating cover image even if underlying file has not been modified or chapter already has a cover image</param>
-    private Task UpdateSeriesCoverImage(Series? series, bool forceUpdate)
+    private Task UpdateSeriesCoverImage(Series? series, bool forceUpdate, bool forceColorScape = false)
     {
         if (series == null) return Task.CompletedTask;
 
         if (!_cacheHelper.ShouldUpdateCoverImage(_directoryService.FileSystem.Path.Join(_directoryService.CoverImageDirectory, series.CoverImage),
                 null, series.Created, forceUpdate, series.CoverImageLocked))
+        {
+            // Check if we don't have a primary/seconary color
+            if (NeedsColorSpace(series, forceColorScape))
+            {
+                _imageService.UpdateColorScape(series);
+                _updateEvents.Add(MessageFactory.CoverUpdateEvent(series.Id, MessageFactoryEntityTypes.Series));
+            }
             return Task.CompletedTask;
+        }
 
         series.Volumes ??= [];
 
@@ -229,7 +271,7 @@ public class MetadataServiceGds : IMetadataServiceGds
     /// <param name="series"></param>
     /// <param name="forceUpdate"></param>
     /// <param name="encodeFormat"></param>
-    private async Task ProcessSeriesCoverGen(Series series, bool forceUpdate, EncodeFormat encodeFormat, CoverImageSize coverImageSize, GdsInfo gdsInfo)
+    private async Task ProcessSeriesCoverGen(Series series, bool forceUpdate, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceColorScape = false, GdsInfo gdsInfo=null)
     {
         _logger.LogDebug("[MetadataServiceGDS] Processing cover image generation for series: {SeriesName}", series.OriginalName);
         try
@@ -242,7 +284,7 @@ public class MetadataServiceGds : IMetadataServiceGds
                 var index = 0;
                 foreach (var chapter in volume.Chapters)
                 {
-                    var chapterUpdated = await UpdateChapterCoverImage(chapter, forceUpdate, encodeFormat, coverImageSize, gdsInfo);
+                    var chapterUpdated = await UpdateChapterCoverImage(chapter, forceUpdate, encodeFormat, coverImageSize, forceColorScape, gdsInfo);
                     // If cover was update, either the file has changed or first scan and we should force a metadata update
                     UpdateChapterLastModified(chapter, forceUpdate || chapterUpdated);
                     if (index == 0 && chapterUpdated)
@@ -252,7 +294,7 @@ public class MetadataServiceGds : IMetadataServiceGds
                     index++;
                 }
 
-                var volumeUpdated = await UpdateVolumeCoverImage(volume, firstChapterUpdated || forceUpdate);
+                var volumeUpdated = await UpdateVolumeCoverImage(volume, firstChapterUpdated || forceUpdate, forceColorScape);
                 if (volumeIndex == 0 && volumeUpdated)
                 {
                     firstVolumeUpdated = true;
@@ -274,7 +316,7 @@ public class MetadataServiceGds : IMetadataServiceGds
                 }
             }
             
-            await UpdateSeriesCoverImage(series, firstVolumeUpdated || forceUpdate);
+            await UpdateSeriesCoverImage(series, firstVolumeUpdated || forceUpdate, forceColorScape);
 
             if (useFirstCover)
             {
@@ -324,7 +366,7 @@ public class MetadataServiceGds : IMetadataServiceGds
     /// <param name="forceUpdate">Force updating cover image even if underlying file has not been modified or chapter already has a cover image</param>
     [DisableConcurrentExecution(timeoutInSeconds: 60 * 60 * 60)]
     [AutomaticRetry(Attempts = 3, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
-    public async Task GenerateCoversForLibrary(int libraryId, bool forceUpdate = false)
+    public async Task GenerateCoversForLibrary(int libraryId, bool forceUpdate = false, bool forceColorScape = false)
     {
         var library = await _unitOfWork.LibraryRepository.GetLibraryForIdAsync(libraryId);
         if (library == null) return;
@@ -373,7 +415,7 @@ public class MetadataServiceGds : IMetadataServiceGds
                 try
                 {
                     GdsInfo gdsInfo = GdsUtil.getGdsInfoBySeries(series);
-                    await ProcessSeriesCoverGen(series, forceUpdate, encodeFormat, coverImageSize, gdsInfo);
+                    await ProcessSeriesCoverGen(series, forceUpdate, encodeFormat, coverImageSize, forceColorScape, gdsInfo);
                 }
                 catch (Exception ex)
                 {
@@ -414,7 +456,7 @@ public class MetadataServiceGds : IMetadataServiceGds
     /// <param name="libraryId"></param>
     /// <param name="seriesId"></param>
     /// <param name="forceUpdate">Overrides any cache logic and forces execution</param>
-    public async Task GenerateCoversForSeries(int libraryId, int seriesId, bool forceUpdate = true, GdsInfo gdsInfo=null)
+    public async Task GenerateCoversForSeries(int libraryId, int seriesId, bool forceUpdate = true, bool forceColorScape = true, GdsInfo gdsInfo=null)
     {
         var series = await _unitOfWork.SeriesRepository.GetFullSeriesForSeriesIdAsync(seriesId);
         if (series == null)
@@ -429,7 +471,7 @@ public class MetadataServiceGds : IMetadataServiceGds
         var settings = await _unitOfWork.SettingsRepository.GetSettingsDtoAsync();
         var encodeFormat = settings.EncodeMediaAs;
         var coverImageSize = settings.CoverImageSize;
-        await GenerateCoversForSeries(series, encodeFormat, coverImageSize, forceUpdate, gdsInfo);
+        await GenerateCoversForSeries(series, encodeFormat, coverImageSize, forceUpdate, forceColorScape, gdsInfo);
     }
 
     /// <summary>
@@ -438,13 +480,13 @@ public class MetadataServiceGds : IMetadataServiceGds
     /// <param name="series">A full Series, with metadata, chapters, etc</param>
     /// <param name="encodeFormat">When saving the file, what encoding should be used</param>
     /// <param name="forceUpdate"></param>
-    public async Task GenerateCoversForSeries(Series series, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceUpdate = false, GdsInfo gdsInfo=null)
+    public async Task GenerateCoversForSeries(Series series, EncodeFormat encodeFormat, CoverImageSize coverImageSize, bool forceUpdate = false, bool forceColorScape = true, GdsInfo gdsInfo=null)
     {
         var sw = Stopwatch.StartNew();
         await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress,
             MessageFactory.CoverUpdateProgressEvent(series.LibraryId, 0F, ProgressEventType.Started, series.Name));
 
-        await ProcessSeriesCoverGen(series, forceUpdate, encodeFormat, coverImageSize, gdsInfo);
+        await ProcessSeriesCoverGen(series, forceUpdate, encodeFormat, coverImageSize, forceColorScape, gdsInfo);
 
 
         if (_unitOfWork.HasChanges())
