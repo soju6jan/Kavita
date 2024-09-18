@@ -1,4 +1,4 @@
-import { CommonModule } from "@angular/common";
+import { AsyncPipe, NgClass } from "@angular/common";
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -10,11 +10,12 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { NavigationEnd, Router } from '@angular/router';
-import {NgbTooltip} from '@ng-bootstrap/ng-bootstrap';
-import {distinctUntilChanged, filter, map, take, tap} from 'rxjs/operators';
+import { TranslocoDirective } from "@jsverse/transloco";
+import { NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
+import { BehaviorSubject, merge, Observable, of, ReplaySubject, startWith, switchMap } from "rxjs";
+import { distinctUntilChanged, filter, map, take, tap } from 'rxjs/operators';
 import { ImageService } from 'src/app/_services/image.service';
 import { EVENTS, MessageHubService } from 'src/app/_services/message-hub.service';
-import { ImportCblModalComponent } from 'src/app/reading-list/_modals/import-cbl-modal/import-cbl-modal.component';
 import { Library, LibraryType } from '../../../_models/library/library';
 import { SideNavStream } from "../../../_models/sidenav/sidenav-stream";
 import { SideNavStreamType } from "../../../_models/sidenav/sidenav-stream-type.enum";
@@ -25,19 +26,10 @@ import { AccountService } from '../../../_services/account.service';
 import { Action, ActionFactoryService, ActionItem } from '../../../_services/action-factory.service';
 import { ActionService } from '../../../_services/action.service';
 import { NavService } from '../../../_services/nav.service';
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {BehaviorSubject, merge, Observable, of, ReplaySubject, startWith, switchMap} from "rxjs";
-import {AsyncPipe, NgClass} from "@angular/common";
-import {SideNavItemComponent} from "../side-nav-item/side-nav-item.component";
-import {FilterPipe} from "../../../_pipes/filter.pipe";
-import {FormsModule} from "@angular/forms";
-import {TranslocoDirective} from "@jsverse/transloco";
-import {CardActionablesComponent} from "../../../_single-module/card-actionables/card-actionables.component";
-import {SentenceCasePipe} from "../../../_pipes/sentence-case.pipe";
-import {SideNavStream} from "../../../_models/sidenav/sidenav-stream";
-import {SideNavStreamType} from "../../../_models/sidenav/sidenav-stream-type.enum";
-import {WikiLink} from "../../../_models/wiki";
-import {SettingsTabId} from "../../preference-nav/preference-nav.component";
+import { CardActionablesComponent } from "../../../_single-module/card-actionables/card-actionables.component";
+import { Breakpoint, UtilityService } from '../../../shared/_services/utility.service';
+import { SettingsTabId } from "../../preference-nav/preference-nav.component";
+import { SideNavItemComponent } from "../side-nav-item/side-nav-item.component";
 
 @Component({
   selector: 'app-side-nav',

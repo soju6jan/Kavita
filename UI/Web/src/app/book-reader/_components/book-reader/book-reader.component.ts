@@ -18,8 +18,8 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
+import { translate, TranslocoDirective } from "@jsverse/transloco";
 import { NgbNav, NgbNavContent, NgbNavItem, NgbNavItemRole, NgbNavLink, NgbNavOutlet, NgbProgressbar, NgbTooltip } from '@ng-bootstrap/ng-bootstrap';
-import { translate, TranslocoDirective } from "@ngneat/transloco";
 import { ToastrService } from 'ngx-toastr';
 import { forkJoin, fromEvent, of } from 'rxjs';
 import { catchError, debounceTime, distinctUntilChanged, take, tap } from 'rxjs/operators';
@@ -50,8 +50,8 @@ import {
   PersonalTableOfContentsComponent,
   PersonalToCEvent
 } from "../personal-table-of-contents/personal-table-of-contents.component";
-import {translate, TranslocoDirective} from "@jsverse/transloco";
-
+import { PageStyle, ReaderSettingsComponent } from '../reader-settings/reader-settings.component';
+import { TableOfContentsComponent } from '../table-of-contents/table-of-contents.component';
 
 enum TabID {
   Settings = 1,

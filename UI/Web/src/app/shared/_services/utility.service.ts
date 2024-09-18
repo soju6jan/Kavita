@@ -1,14 +1,13 @@
 import { HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { TranslocoService } from "@ngneat/transloco";
+import { translate } from "@jsverse/transloco";
+import { debounceTime, ReplaySubject, shareReplay } from "rxjs";
 import { Chapter } from 'src/app/_models/chapter';
 import { LibraryType } from 'src/app/_models/library/library';
 import { MangaFormat } from 'src/app/_models/manga-format';
 import { PaginatedResult } from 'src/app/_models/pagination';
 import { Series } from 'src/app/_models/series';
 import { Volume } from 'src/app/_models/volume';
-import {translate, TranslocoService} from "@jsverse/transloco";
-import {debounceTime, ReplaySubject, shareReplay} from "rxjs";
 
 export enum KEY_CODES {
   RIGHT_ARROW = 'ArrowRight',
@@ -82,7 +81,7 @@ export class UtilityService {
       case LibraryType.Manga:
              return translate('common.chapter-num' + extra) + (includeSpace ? ' ' : '');
       case LibraryType.Gds:
-          return this.translocoService.translate('common.volume-num') + (includeSpace ? ' ' : '');
+          return translate('common.volume-num') + (includeSpace ? ' ' : '');
     }
   }
 

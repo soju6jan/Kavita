@@ -1,4 +1,4 @@
-import {DOCUMENT, AsyncPipe, NgStyle} from '@angular/common';
+import { AsyncPipe, DOCUMENT, NgStyle } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -16,18 +16,18 @@ import {
   Renderer2,
   SimpleChanges, ViewChild
 } from '@angular/core';
-import {BehaviorSubject, fromEvent, map, Observable, of, ReplaySubject} from 'rxjs';
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { TranslocoDirective } from "@jsverse/transloco";
+import { InfiniteScrollModule } from "ngx-infinite-scroll";
+import { BehaviorSubject, fromEvent, map, Observable, of, ReplaySubject } from 'rxjs';
 import { debounceTime } from 'rxjs/operators';
 import { ScrollService } from 'src/app/_services/scroll.service';
+import { SafeStylePipe } from "../../../_pipes/safe-style.pipe";
 import { ReaderService } from '../../../_services/reader.service';
 import { PAGING_DIRECTION } from '../../_models/reader-enums';
+import { ReaderSetting } from "../../_models/reader-setting";
 import { WebtoonImage } from '../../_models/webtoon-image';
 import { ManagaReaderService } from '../../_service/managa-reader.service';
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {TranslocoDirective} from "@jsverse/transloco";
-import {InfiniteScrollModule} from "ngx-infinite-scroll";
-import {ReaderSetting} from "../../_models/reader-setting";
-import {SafeStylePipe} from "../../../_pipes/safe-style.pipe";
 
 /**
  * How much additional space should pass, past the original bottom of the document height before we trigger the next chapter load

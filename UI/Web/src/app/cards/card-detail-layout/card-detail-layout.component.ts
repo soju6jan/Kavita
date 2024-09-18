@@ -1,4 +1,4 @@
-import {CommonModule, DOCUMENT, NgClass, NgForOf, NgTemplateOutlet} from '@angular/common';
+import { DOCUMENT, NgClass, NgForOf, NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -12,33 +12,35 @@ import {
   Input,
   OnChanges,
   OnInit,
-  Output, SimpleChange, SimpleChanges,
+  Output,
+  SimpleChanges,
   TemplateRef,
   TrackByFunction,
   ViewChild
 } from '@angular/core';
-import {NavigationStart, Router} from '@angular/router';
-import {VirtualScrollerComponent, VirtualScrollerModule} from '@iharbeck/ngx-virtual-scroller';
-import {FilterSettings} from 'src/app/metadata-filter/filter-settings';
-import {FilterUtilitiesService} from 'src/app/shared/_services/filter-utilities.service';
-import {Breakpoint, UtilityService} from 'src/app/shared/_services/utility.service';
-import {JumpKey} from 'src/app/_models/jumpbar/jump-key';
-import {Library} from 'src/app/_models/library/library';
-import {Pagination} from 'src/app/_models/pagination';
-import {FilterEvent, FilterItem, SortField} from 'src/app/_models/metadata/series-filter';
-import {ActionItem} from 'src/app/_services/action-factory.service';
-import {JumpbarService} from 'src/app/_services/jumpbar.service';
-import {LoadingComponent} from "../../shared/loading/loading.component";
+import { NavigationStart, Router } from '@angular/router';
+import { VirtualScrollerComponent, VirtualScrollerModule } from '@iharbeck/ngx-virtual-scroller';
+import { JumpKey } from 'src/app/_models/jumpbar/jump-key';
+import { Library } from 'src/app/_models/library/library';
+import { FilterEvent, FilterItem, SortField } from 'src/app/_models/metadata/series-filter';
+import { Pagination } from 'src/app/_models/pagination';
+import { ActionItem } from 'src/app/_services/action-factory.service';
+import { JumpbarService } from 'src/app/_services/jumpbar.service';
+import { ScrollService } from 'src/app/_services/scroll.service';
+import { FilterSettings } from 'src/app/metadata-filter/filter-settings';
+import { FilterUtilitiesService } from 'src/app/shared/_services/filter-utilities.service';
+import { Breakpoint, UtilityService } from 'src/app/shared/_services/utility.service';
+import { LoadingComponent } from "../../shared/loading/loading.component";
 
 
-import {NgbTooltip} from "@ng-bootstrap/ng-bootstrap";
-import {MetadataFilterComponent} from "../../metadata-filter/metadata-filter.component";
-import {TranslocoDirective} from "@jsverse/transloco";
-import {CardActionablesComponent} from "../../_single-module/card-actionables/card-actionables.component";
-import {SeriesFilterV2} from "../../_models/metadata/v2/series-filter-v2";
-import {filter, map} from "rxjs/operators";
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {tap} from "rxjs";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { TranslocoDirective } from "@jsverse/transloco";
+import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
+import { tap } from "rxjs";
+import { filter, map } from "rxjs/operators";
+import { SeriesFilterV2 } from "../../_models/metadata/v2/series-filter-v2";
+import { CardActionablesComponent } from "../../_single-module/card-actionables/card-actionables.component";
+import { MetadataFilterComponent } from "../../metadata-filter/metadata-filter.component";
 
 
 const ANIMATION_TIME_MS = 0;
@@ -58,6 +60,7 @@ export class CardDetailLayoutComponent implements OnInit, OnChanges {
   protected readonly utilityService = inject(UtilityService);
   private readonly cdRef = inject(ChangeDetectorRef);
   private readonly jumpbarService = inject(JumpbarService);
+  private readonly scrollService = inject(ScrollService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -106,6 +109,7 @@ export class CardDetailLayoutComponent implements OnInit, OnChanges {
   libraries: Array<FilterItem<Library>> = [];
 
   updateApplied: number = 0;
+  hasResumedJumpKey: boolean = false;
   bufferAmount: number = 1;
 
 
@@ -234,7 +238,7 @@ export class CardDetailLayoutComponent implements OnInit, OnChanges {
   }
 
 
-  tryToSaveJumpKey(item: any) {
+  tryToSaveJumpKey() {
     /*
     let name = '';
     if (item.hasOwnProperty('name')) {

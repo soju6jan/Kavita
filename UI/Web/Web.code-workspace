@@ -4,5 +4,22 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"typescript.suggest.autoImports": false,
+		"typescript.suggest.includeCompletionsForImportStatements": false,
+		"editor.formatOnSave": false,
+		"typescript.updateImportsOnFileMove.enabled": "never",
+		"typescript.tsserver.enableRegionDiagnostics": false,
+		"typescript.tsserver.experimental.useVsCodeWatcher": false,
+		"typescript.validate.enable": false,
+		"typescript.suggestionActions.enabled": false,
+		"typescript.suggest.enabled": true,
+		"[typescript]": {
+			"editor.formatOnSave": false,
+			"editor.defaultFormatter": null
+		},
+		"[typescriptreact]": {
+			"editor.formatOnSave": false
+		},
+	}
 }

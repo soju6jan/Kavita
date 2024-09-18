@@ -32,6 +32,10 @@ export class JumpbarService {
   saveResumePosition(url: string, value: number) {
     this.resumeScroll[url] = value;
   }
+  
+  saveScrollOffset(key: string, value: number) {
+    this.resumeScroll[key] = value;
+  }
 
   generateJumpBar(jumpBarKeys: Array<JumpKey>, currentSize: number) {
     const fullSize = (jumpBarKeys.length * keySize);
