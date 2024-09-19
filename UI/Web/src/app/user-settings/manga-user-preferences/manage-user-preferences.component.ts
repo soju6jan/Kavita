@@ -122,12 +122,14 @@ export class ManageUserPreferencesComponent implements OnInit {
 
 
   fontFamilies: Array<string> = [];
-  locales: Array<Language> = [{title: 'English', isoCode: 'en'}];
+  locales: Array<Language> = [{title: 'Korean', isoCode: 'ko'}];
 
   settingsForm: FormGroup = new FormGroup({});
   user: User | undefined = undefined;
 
   get Locale() {
+    //SOJUFIX
+    return 'Korean';
     if (!this.settingsForm.get('locale')) return 'English';
     return this.locales.filter(l => l.isoCode === this.settingsForm.get('locale')!.value)[0].title;
   }

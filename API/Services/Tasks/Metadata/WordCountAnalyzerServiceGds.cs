@@ -58,6 +58,7 @@ public class WordCountAnalyzerServiceGds : IWordCountAnalyzerServiceGds
         var sw = Stopwatch.StartNew();
         var library = await _unitOfWork.LibraryRepository.GetLibraryForIdAsync(libraryId);
         if (library == null) return;
+        if (library.Type != LibraryType.GDS) return;
 
         await _eventHub.SendMessageAsync(MessageFactory.NotificationProgress,
             MessageFactory.WordCountAnalyzerProgressEvent(libraryId, 0F, ProgressEventType.Started, string.Empty));
@@ -126,6 +127,9 @@ public class WordCountAnalyzerServiceGds : IWordCountAnalyzerServiceGds
 
     public async Task ScanSeries(int libraryId, int seriesId, bool forceUpdate = true, GdsInfo gdsInfo = null)
     {
+        var library = await _unitOfWork.LibraryRepository.GetLibraryForIdAsync(libraryId);
+        if (library == null) return;
+        if (library.Type != LibraryType.GDS) return;
         var sw = Stopwatch.StartNew();
         var series = await _unitOfWork.SeriesRepository.GetFullSeriesForSeriesIdAsync(seriesId);
         if (series == null)

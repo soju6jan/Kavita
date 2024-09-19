@@ -1,9 +1,9 @@
-import {DestroyRef, inject, Injectable} from '@angular/core';
+import { DestroyRef, inject, Injectable } from '@angular/core';
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { environment } from 'src/environments/environment';
-import { ThemeService } from './theme.service';
 import { RecentlyAddedItem } from '../_models/recently-added-item';
 import { AccountService } from './account.service';
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
+import { ThemeService } from './theme.service';
 
 @Injectable({
   providedIn: 'root'

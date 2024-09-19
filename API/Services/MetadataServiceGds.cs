@@ -112,6 +112,8 @@ public class MetadataServiceGds : IMetadataServiceGds
                 } else if (gdsFile.cover == "TEXT")
                 {
                     chapter.CoverImage = "text.png";
+                    _imageService.UpdateColorScape(chapter);
+                    _unitOfWork.ChapterRepository.Update(chapter);
                 }
                 else
                 {
@@ -121,6 +123,8 @@ public class MetadataServiceGds : IMetadataServiceGds
                     if (flagGdsInfo)
                     {
                         chapter.CoverImage = ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId) + ".png";
+                        _imageService.UpdateColorScape(chapter);
+                        _unitOfWork.ChapterRepository.Update(chapter);
                     }
                 }
             }
@@ -134,6 +138,7 @@ public class MetadataServiceGds : IMetadataServiceGds
                 chapter.CoverImage = _readingItemService.GetCoverImage(firstFile.FilePath,
                 ImageService.GetChapterFormat(chapter.Id, chapter.VolumeId), firstFile.Format, encodeFormat, coverImageSize);
             }
+            _imageService.UpdateColorScape(chapter);
             _unitOfWork.ChapterRepository.Update(chapter);
 
             _updateEvents.Add(MessageFactory.CoverUpdateEvent(chapter.Id, MessageFactoryEntityTypes.Chapter));
@@ -192,6 +197,7 @@ public class MetadataServiceGds : IMetadataServiceGds
         }
 
         volume.CoverImage = firstChapter.CoverImage;
+        _imageService.UpdateColorScape(volume);
         _updateEvents.Add(MessageFactory.CoverUpdateEvent(volume.Id, MessageFactoryEntityTypes.Volume));
 
         return Task.FromResult(true);
@@ -260,6 +266,7 @@ public class MetadataServiceGds : IMetadataServiceGds
         if (flagCover == false)
             series.CoverImage = series.GetCoverImage();
 
+        _imageService.UpdateColorScape(series);
         _updateEvents.Add(MessageFactory.CoverUpdateEvent(series.Id, MessageFactoryEntityTypes.Series));
         return Task.CompletedTask;
     }
@@ -370,6 +377,7 @@ public class MetadataServiceGds : IMetadataServiceGds
     {
         var library = await _unitOfWork.LibraryRepository.GetLibraryForIdAsync(libraryId);
         if (library == null) return;
+        if (library.Type != LibraryType.GDS) return;
         _logger.LogInformation("[MetadataServiceGDS] Beginning cover generation refresh of {LibraryName}", library.Name);
 
         _updateEvents.Clear();
