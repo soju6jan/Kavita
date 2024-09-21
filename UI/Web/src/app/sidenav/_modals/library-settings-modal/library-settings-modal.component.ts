@@ -1,3 +1,4 @@
+import { CommonModule } from "@angular/common";
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -7,7 +8,9 @@ import {
   Input,
   OnInit
 } from '@angular/core';
-import {FormControl, FormGroup, ReactiveFormsModule, Validators} from '@angular/forms';
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { translate, TranslocoModule } from "@jsverse/transloco";
 import {
   NgbAccordionBody,
   NgbAccordionButton, NgbAccordionCollapse,
@@ -22,34 +25,31 @@ import {
   NgbNavOutlet,
   NgbTooltip
 } from '@ng-bootstrap/ng-bootstrap';
-import {ToastrService} from 'ngx-toastr';
-import {debounceTime, distinctUntilChanged, switchMap, tap} from 'rxjs';
-import {SettingsService} from 'src/app/admin/settings.service';
+import { ToastrService } from 'ngx-toastr';
+import { debounceTime, distinctUntilChanged, switchMap, tap } from 'rxjs';
+import { Library, LibraryType } from 'src/app/_models/library/library';
+import { ImageService } from 'src/app/_services/image.service';
+import { LibraryService } from 'src/app/_services/library.service';
+import { UploadService } from 'src/app/_services/upload.service';
 import {
   DirectoryPickerComponent,
   DirectoryPickerResult
 } from 'src/app/admin/_modals/directory-picker/directory-picker.component';
-import {ConfirmService} from 'src/app/shared/confirm.service';
-import {Breakpoint, UtilityService} from 'src/app/shared/_services/utility.service';
-import {Library, LibraryType} from 'src/app/_models/library/library';
-import {ImageService} from 'src/app/_services/image.service';
-import {LibraryService} from 'src/app/_services/library.service';
-import {UploadService} from 'src/app/_services/upload.service';
-import {takeUntilDestroyed} from "@angular/core/rxjs-interop";
-import {CommonModule} from "@angular/common";
-import {SentenceCasePipe} from "../../../_pipes/sentence-case.pipe";
-import {CoverImageChooserComponent} from "../../../cards/cover-image-chooser/cover-image-chooser.component";
-import {translate, TranslocoModule} from "@jsverse/transloco";
-import {DefaultDatePipe} from "../../../_pipes/default-date.pipe";
-import {allFileTypeGroup, FileTypeGroup} from "../../../_models/library/file-type-group.enum";
-import {FileTypeGroupPipe} from "../../../_pipes/file-type-group.pipe";
-import {EditListComponent} from "../../../shared/edit-list/edit-list.component";
-import {WikiLink} from "../../../_models/wiki";
-import {SettingItemComponent} from "../../../settings/_components/setting-item/setting-item.component";
-import {SettingSwitchComponent} from "../../../settings/_components/setting-switch/setting-switch.component";
-import {SettingButtonComponent} from "../../../settings/_components/setting-button/setting-button.component";
-import {Action, ActionFactoryService, ActionItem} from "../../../_services/action-factory.service";
-import {ActionService} from "../../../_services/action.service";
+import { SettingsService } from 'src/app/admin/settings.service';
+import { Breakpoint, UtilityService } from 'src/app/shared/_services/utility.service';
+import { ConfirmService } from 'src/app/shared/confirm.service';
+import { allFileTypeGroup, FileTypeGroup } from "../../../_models/library/file-type-group.enum";
+import { WikiLink } from "../../../_models/wiki";
+import { DefaultDatePipe } from "../../../_pipes/default-date.pipe";
+import { FileTypeGroupPipe } from "../../../_pipes/file-type-group.pipe";
+import { SentenceCasePipe } from "../../../_pipes/sentence-case.pipe";
+import { Action, ActionFactoryService, ActionItem } from "../../../_services/action-factory.service";
+import { ActionService } from "../../../_services/action.service";
+import { CoverImageChooserComponent } from "../../../cards/cover-image-chooser/cover-image-chooser.component";
+import { SettingButtonComponent } from "../../../settings/_components/setting-button/setting-button.component";
+import { SettingItemComponent } from "../../../settings/_components/setting-item/setting-item.component";
+import { SettingSwitchComponent } from "../../../settings/_components/setting-switch/setting-switch.component";
+import { EditListComponent } from "../../../shared/edit-list/edit-list.component";
 
 enum TabID {
   General = 'general-tab',
@@ -390,7 +390,7 @@ export class LibrarySettingsModalComponent implements OnInit {
   async runTask(action: ActionItem<Library>) {
     switch (action.action) {
       case Action.Scan:
-        await this.actionService.scanLibrary(this.library!);
+        await this.actionService.scanLibraryForce(this.library!);
         break;
       case Action.RefreshMetadata:
         await this.actionService.refreshLibraryMetadata(this.library!);

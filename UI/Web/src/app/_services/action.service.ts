@@ -1,32 +1,30 @@
-import {inject, Injectable, OnDestroy} from '@angular/core';
+import { inject, Injectable } from '@angular/core';
+import { translate } from "@jsverse/transloco";
 import { NgbModal, NgbModalRef } from '@ng-bootstrap/ng-bootstrap';
 import { ToastrService } from 'ngx-toastr';
-import {Subject, tap} from 'rxjs';
 import { take } from 'rxjs/operators';
-import { BulkAddToCollectionComponent } from '../cards/_modals/bulk-add-to-collection/bulk-add-to-collection.component';
-import { AddToListModalComponent, ADD_FLOW } from '../reading-list/_modals/add-to-list-modal/add-to-list-modal.component';
-import { EditReadingListModalComponent } from '../reading-list/_modals/edit-reading-list-modal/edit-reading-list-modal.component';
-import { ConfirmService } from '../shared/confirm.service';
-import { LibrarySettingsModalComponent } from '../sidenav/_modals/library-settings-modal/library-settings-modal.component';
 import { Chapter } from '../_models/chapter';
+import { UserCollection } from "../_models/collection-tag";
 import { Device } from '../_models/device/device';
 import { Library } from '../_models/library/library';
 import { ReadingList } from '../_models/reading-list';
 import { Series } from '../_models/series';
 import { Volume } from '../_models/volume';
+import { BulkAddToCollectionComponent } from '../cards/_modals/bulk-add-to-collection/bulk-add-to-collection.component';
+import { ADD_FLOW, AddToListModalComponent } from '../reading-list/_modals/add-to-list-modal/add-to-list-modal.component';
+import { EditReadingListModalComponent } from '../reading-list/_modals/edit-reading-list-modal/edit-reading-list-modal.component';
+import { ConfirmService } from '../shared/confirm.service';
+import { LibrarySettingsModalComponent } from '../sidenav/_modals/library-settings-modal/library-settings-modal.component';
+import { ChapterService } from "./chapter.service";
+import { CollectionTagService } from "./collection-tag.service";
 import { DeviceService } from './device.service';
+import { FilterService } from "./filter.service";
 import { LibraryService } from './library.service';
 import { MemberService } from './member.service';
 import { ReaderService } from './reader.service';
+import { ReadingListService } from "./reading-list.service";
 import { SeriesService } from './series.service';
-import {translate} from "@jsverse/transloco";
-import {UserCollection} from "../_models/collection-tag";
-import {CollectionTagService} from "./collection-tag.service";
-import {SmartFilter} from "../_models/metadata/v2/smart-filter";
-import {FilterService} from "./filter.service";
-import {ReadingListService} from "./reading-list.service";
-import {ChapterService} from "./chapter.service";
-import {VolumeService} from "./volume.service";
+import { VolumeService } from "./volume.service";
 
 export type LibraryActionCallback = (library: Partial<Library>) => void;
 export type SeriesActionCallback = (series: Series) => void;
@@ -85,6 +83,21 @@ export class ActionService {
     });
   }
 
+  async scanLibraryForce(library: Partial<Library>, callback?: LibraryActionCallback) {
+    if (!library.hasOwnProperty('id') || library.id === undefined) {
+      return;
+    }
+
+    // Prompt user if we should do a force or not
+    const force = true; // await this.promptIfForce();
+
+    this.libraryService.scan(library.id, force).pipe(take(1)).subscribe((res: any) => {
+      this.toastr.info(translate('toasts.scan-queued', {name: library.name}));
+      if (callback) {
+        callback(library);
+      }
+    });
+  }
 
   /**
    * Request a refresh of Metadata for a given Library
