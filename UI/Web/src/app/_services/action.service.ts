@@ -83,21 +83,6 @@ export class ActionService {
     });
   }
 
-  async scanLibraryForce(library: Partial<Library>, callback?: LibraryActionCallback) {
-    if (!library.hasOwnProperty('id') || library.id === undefined) {
-      return;
-    }
-
-    // Prompt user if we should do a force or not
-    const force = true; // await this.promptIfForce();
-
-    this.libraryService.scan(library.id, force).pipe(take(1)).subscribe((res: any) => {
-      this.toastr.info(translate('toasts.scan-queued', {name: library.name}));
-      if (callback) {
-        callback(library);
-      }
-    });
-  }
 
   /**
    * Request a refresh of Metadata for a given Library

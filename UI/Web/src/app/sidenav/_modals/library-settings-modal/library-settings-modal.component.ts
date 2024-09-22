@@ -390,7 +390,7 @@ export class LibrarySettingsModalComponent implements OnInit {
   async runTask(action: ActionItem<Library>) {
     switch (action.action) {
       case Action.Scan:
-        await this.actionService.scanLibraryForce(this.library!);
+        await this.actionService.scanLibrary(this.library!);
         break;
       case Action.RefreshMetadata:
         await this.actionService.refreshLibraryMetadata(this.library!);
